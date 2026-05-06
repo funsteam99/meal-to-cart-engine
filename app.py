@@ -82,8 +82,13 @@ st.html(
     }
     .block-container {
         max-width: 900px;
-        padding-top: 1.2rem;
+        padding-top: 4.2rem;
         padding-bottom: 3rem;
+    }
+    @media (max-width: 640px) {
+        .block-container {
+            padding-top: 5rem;
+        }
     }
     h1, h2, h3 {
         color: #25211c;

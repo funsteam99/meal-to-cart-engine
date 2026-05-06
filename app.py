@@ -78,10 +78,12 @@ st.html(
     """
     <style>
     .stApp {
-        background: linear-gradient(180deg, #f8f2e8 0%, #f3eadb 100%);
+        background:
+            linear-gradient(180deg, rgba(248,242,232,.98) 0%, rgba(243,234,219,.99) 100%),
+            repeating-linear-gradient(90deg, rgba(47,111,78,.055) 0 1px, transparent 1px 44px);
     }
     .block-container {
-        max-width: 900px;
+        max-width: 960px;
         padding-top: 4.2rem;
         padding-bottom: 3rem;
     }
@@ -101,6 +103,9 @@ st.html(
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: #fffaf1;
         border-color: #ded1be;
+    }
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #ded1be;
     }
     </style>
     """
@@ -171,6 +176,62 @@ def source_block(source):
     )
 
 
+def cover_block():
+    st.html(
+        """
+        <div style="
+            background:#25211c;
+            color:#fffaf1;
+            border-top:10px solid #2f6f4e;
+            padding:30px 28px 26px;
+            margin:6px 0 20px;">
+            <div style="
+                color:#e7c96f;
+                font-size:13px;
+                font-weight:900;
+                letter-spacing:.1em;
+                margin-bottom:18px;">零售媒體專題展示</div>
+            <div style="
+                font-size:48px;
+                font-weight:900;
+                line-height:1.02;
+                margin-bottom:14px;">從冰箱到購物車</div>
+            <div style="
+                color:#e9ddcd;
+                font-size:18px;
+                line-height:1.65;
+                max-width:700px;">AI 如何把消費者的晚餐意圖，轉成促銷商品、合作通路與可衡量的零售媒體收入。</div>
+        </div>
+        """
+    )
+
+
+def insight_strip():
+    col1, col2, col3 = st.columns(3)
+    insights = [
+        ("01", "食材就是需求訊號", "冰箱裡已有什麼，代表消費者今晚最接近下單的料理方向。", "#eef7f1"),
+        ("02", "促銷不再只是折扣", "商品推薦跟著晚餐情境出現，品牌版位自然接近購買決策。", "#fff0eb"),
+        ("03", "主管看得到數字", "推薦品項、加購金額、媒體版位都能轉成商業成效。", "#fff8df"),
+    ]
+    for column, item in zip((col1, col2, col3), insights):
+        number, title, body, bg = item
+        with column:
+            st.html(
+                f"""
+                <div style="
+                    background:{bg};
+                    border:1px solid rgba(37,33,28,.16);
+                    min-height:176px;
+                    padding:18px;
+                    color:#25211c;">
+                    <div style="color:#2f6f4e;font-size:13px;font-weight:900;margin-bottom:16px;">{number}</div>
+                    <div style="font-size:20px;font-weight:900;line-height:1.2;margin-bottom:10px;">{title}</div>
+                    <div style="color:#65594f;font-size:14px;line-height:1.55;">{body}</div>
+                </div>
+                """
+            )
+
+
 def read_runtime_config():
     try:
         api_key = st.secrets.get("api_key")
@@ -214,11 +275,11 @@ def catalog_as_prompt():
 
 
 def render_retail_media_banner():
-    st.subheader("模擬零售媒體版位")
+    st.header("跨頁廣告版位")
     color_block(
         "本週主推：高蛋白晚餐購物籃",
         "模擬品牌贊助版位：雞胸肉、雞蛋、豆腐與冷藏料理商品。重點是跟著使用者的晚餐需求出現，而不是單純插入廣告。",
-        eyebrow="零售媒體版位",
+        eyebrow="Sponsored Placement",
         bg="#25211c",
         color="#e7c96f",
         text_color="#fffaf1",
@@ -227,7 +288,7 @@ def render_retail_media_banner():
 
 
 def render_partner_sources():
-    st.subheader("模擬多來源生鮮通路")
+    st.header("合作通路版面")
     cols = st.columns(2)
     for index, source in enumerate(PARTNER_SOURCES):
         with cols[index % 2]:
@@ -241,11 +302,11 @@ def render_business_impact(plan):
     item_count = cart.get("item_count", len(products))
     sponsored_slots = max(1, min(3, len(products)))
 
-    st.subheader("商業成效模擬")
+    st.header("主管看得懂的三個數字")
     color_block(
         "把晚餐意圖轉成可衡量的零售機會",
         "這個區塊讓主管看到：系統不只是生成食譜，而是把消費者需求轉成促銷商品、加購金額與可銷售媒體版位。",
-        eyebrow="主管視角",
+        eyebrow="Business View",
         bg="#ecdfcb",
         color="#2f6f4e",
     )
@@ -302,7 +363,7 @@ def generate_plan(api_key, model, owned_ingredients, business_goal):
 
 
 def render_plan(plan):
-    st.header("AI 晚餐與購物車建議")
+    st.header("AI 生成的晚餐購物籃")
     with st.container(border=True):
         st.subheader(plan.get("meal_title", "晚餐方案"))
         st.write(plan.get("reasoning_summary", ""))
@@ -347,13 +408,8 @@ def render_plan(plan):
 
 runtime_config = read_runtime_config()
 
-color_block(
-    "AI 食材到購物車引擎",
-    "把冰箱現有食材、賣場促銷商品與晚餐需求，轉成可加購、可衡量、可銷售的零售方案。",
-    eyebrow="賣場與品牌通路展示原型",
-    bg="#fffaf1",
-    color="#2f6f4e",
-)
+cover_block()
+insight_strip()
 
 if not runtime_config["ready"]:
     st.error(runtime_config["error"])
@@ -366,7 +422,8 @@ with st.sidebar:
         st.text_input("模型", value=runtime_config["model"], disabled=True)
     business_goal = st.selectbox("零售商業目標", BUSINESS_GOALS)
 
-st.header("使用者家中食材")
+st.header("第一步：讀懂冰箱裡的需求")
+st.caption("這裡不是問使用者想看哪一道食譜，而是把既有食材轉成晚餐購物意圖。")
 owned_ingredients = st.text_area(
     "這位消費者目前有什麼食材？",
     value=SAMPLE_INGREDIENTS,
@@ -376,10 +433,11 @@ owned_ingredients = st.text_area(
 render_retail_media_banner()
 render_partner_sources()
 
-st.header("模擬促銷商品清單")
+st.header("本週貨架焦點")
+st.caption("這份清單模擬賣場或品牌希望推動的商品。AI 只能從這裡挑選合適品項，不會亂推薦不存在的商品。")
 st.dataframe(PROMO_CATALOG, use_container_width=True, hide_index=True)
 
-st.header("產生晚餐購物車")
+st.header("產生這一期的晚餐購物車")
 if st.button("產生 AI 晚餐與購物車方案", type="primary", use_container_width=True):
     if not runtime_config["ready"]:
         st.error(runtime_config["error"])

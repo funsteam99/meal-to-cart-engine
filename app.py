@@ -1,5 +1,7 @@
+import html
 import json
 import re
+from urllib.parse import quote
 
 import streamlit as st
 from openai import OpenAI
@@ -8,228 +10,988 @@ DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 MODEL_SECRET_KEYS = ("model", "default_model")
 
 PROMO_CATALOG = [
-    {"商品": "雞胸肉", "分類": "肉品", "價格": 89, "促銷主題": "高蛋白主打"},
-    {"商品": "青蔥", "分類": "蔬菜", "價格": 25, "促銷主題": "新鮮配菜組"},
-    {"商品": "沙茶醬", "分類": "調味", "價格": 69, "促銷主題": "台式熱炒常備"},
-    {"商品": "醬油", "分類": "調味", "價格": 55, "促銷主題": "日常料理基礎"},
-    {"商品": "白米", "分類": "主食", "價格": 199, "促銷主題": "家庭號"},
-    {"商品": "豆腐", "分類": "蛋白質", "價格": 29, "促銷主題": "冷藏促銷"},
-    {"商品": "高麗菜", "分類": "蔬菜", "價格": 49, "促銷主題": "當季蔬菜"},
-    {"商品": "雞蛋", "分類": "蛋白質", "價格": 79, "促銷主題": "早餐與便當組"},
-]
-
-PARTNER_SOURCES = [
     {
-        "name": "鮮選超市",
-        "type": "全品項生鮮量販",
-        "offer": "晚餐生鮮組合",
-        "inventory": "184 個促銷品項",
-        "link": "模擬結帳連結",
-        "color": "#2f6f4e",
-        "bg": "#eef7f1",
+        "name": "Heavy Cream",
+        "category": "Dairy",
+        "price": 2.49,
+        "reason": "Makes tomato sauce smooth and rich.",
+        "tone": "cream",
     },
     {
-        "name": "城市精品超市",
-        "type": "都會高端通路",
-        "offer": "冷藏即煮料理包",
-        "inventory": "62 個促銷品項",
-        "link": "模擬結帳連結",
-        "color": "#b84536",
-        "bg": "#fff0eb",
+        "name": "Parmesan Cheese",
+        "category": "Dairy",
+        "price": 2.99,
+        "reason": "Adds a nutty, salty finish.",
+        "tone": "cheese",
     },
     {
-        "name": "鄰里平價市場",
-        "type": "社區型生鮮通路",
-        "offer": "家庭平價菜籃",
-        "inventory": "127 個促銷品項",
-        "link": "模擬結帳連結",
-        "color": "#b88308",
-        "bg": "#fff8df",
+        "name": "Fresh Basil",
+        "category": "Herbs",
+        "price": 1.79,
+        "reason": "Brings a fresh green lift.",
+        "tone": "basil",
     },
     {
-        "name": "產地直送農場",
-        "type": "蔬果與產地合作",
-        "offer": "當季蔬菜加購",
-        "inventory": "38 個促銷品項",
-        "link": "模擬結帳連結",
-        "color": "#3e6d8f",
-        "bg": "#edf6fb",
+        "name": "Garlic",
+        "category": "Produce",
+        "price": 0.89,
+        "reason": "Builds the savory base.",
+        "tone": "garlic",
+    },
+    {
+        "name": "Pasta",
+        "category": "Pantry",
+        "price": 1.99,
+        "reason": "Turns fridge odds and ends into dinner.",
+        "tone": "pasta",
+    },
+    {
+        "name": "Cherry Tomatoes",
+        "category": "Produce",
+        "price": 3.49,
+        "reason": "Cooks down into a sweet quick sauce.",
+        "tone": "tomato",
     },
 ]
 
 BUSINESS_GOALS = [
-    "提高生鮮購物籃金額",
-    "推動冷藏促銷商品銷售",
-    "建立低成本家庭晚餐購物車",
-    "推廣高蛋白料理方案",
+    "Maximize basket value with relevant missing ingredients",
+    "Prioritize fresh produce and dairy promotions",
+    "Build a quick weeknight dinner plan",
+    "Create a sponsored recipe placement",
 ]
 
-SAMPLE_INGREDIENTS = "雞蛋, 豆腐, 高麗菜, 剩飯"
+SAMPLE_INGREDIENTS = "tomatoes, spinach, eggs, cheese"
+
+FALLBACK_PLAN = {
+    "meal_title": "Creamy Tomato Pasta",
+    "reasoning_summary": (
+        "A comforting, creamy pasta packed with juicy tomatoes, fresh spinach, "
+        "parmesan, and basil."
+    ),
+    "owned_ingredients": ["Tomatoes", "Spinach", "Cheese", "Eggs"],
+    "missing_items": ["Heavy Cream", "Parmesan Cheese", "Fresh Basil"],
+    "recommended_products": [
+        {"name": "Heavy Cream", "reason": "Makes the sauce smooth.", "estimated_price": 2.49},
+        {"name": "Parmesan Cheese", "reason": "Adds salty depth.", "estimated_price": 2.99},
+        {"name": "Fresh Basil", "reason": "Finishes the dish fresh.", "estimated_price": 1.79},
+    ],
+    "recipe_steps": [
+        "Boil pasta until al dente.",
+        "Simmer tomatoes with garlic and a splash of cream.",
+        "Fold in spinach, pasta, parmesan, and torn basil.",
+    ],
+    "cart_summary": {"item_count": 3, "estimated_total": 7.27},
+}
 
 st.set_page_config(
-    page_title="AI 食材到購物車引擎",
-    page_icon="🛒",
+    page_title="Freshwise",
+    page_icon="FW",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
 
-st.html(
-    """
-    <style>
-    .stApp {
-        background:
-            linear-gradient(180deg, rgba(248,242,232,.98) 0%, rgba(243,234,219,.99) 100%),
-            repeating-linear-gradient(90deg, rgba(47,111,78,.055) 0 1px, transparent 1px 44px);
-    }
-    .block-container {
-        max-width: 960px;
-        padding-top: 4.2rem;
-        padding-bottom: 3rem;
-    }
-    @media (max-width: 640px) {
-        .block-container {
-            padding-top: 5rem;
+def inject_theme():
+    st.html(
+        """
+        <style>
+        :root {
+            --cream: #fffaf0;
+            --paper: #fffdf7;
+            --mint: #edf7df;
+            --leaf: #2f7b3f;
+            --leaf-dark: #0e3f2a;
+            --lime: #a9c977;
+            --orange: #ff6746;
+            --gold: #f2bd58;
+            --ink: #123624;
+            --muted: #6f796b;
+            --line: rgba(22, 63, 39, .12);
+            --shadow: 0 18px 42px rgba(34, 68, 38, .14);
         }
-    }
-    h1, h2, h3 {
-        color: #25211c;
-    }
-    [data-testid="stMetric"] {
-        background: #fffaf1;
-        border: 1px solid #ded1be;
-        padding: 0.75rem;
-    }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background: #fffaf1;
-        border-color: #ded1be;
-    }
-    div[data-testid="stDataFrame"] {
-        border: 1px solid #ded1be;
-    }
-    </style>
-    """
-)
 
+        html,
+        body,
+        .stApp {
+            min-height: 100%;
+            background:
+                radial-gradient(circle at 16% 4%, rgba(201, 226, 143, .46), transparent 280px),
+                radial-gradient(circle at 88% 8%, rgba(245, 196, 97, .26), transparent 250px),
+                linear-gradient(135deg, #fffdf7 0%, #f4efdd 100%);
+            color: var(--ink);
+        }
 
-def color_block(
-    title,
-    body,
-    eyebrow="",
-    bg="#fffaf1",
-    color="#2f6f4e",
-    text_color="#25211c",
-    body_color="#65594f",
-):
-    st.html(
-        f"""
-        <div style="
-            background:{bg};
-            border:1px solid rgba(37,33,28,.16);
-            border-left:8px solid {color};
-            padding:18px 20px;
-            margin:10px 0 16px;
-            color:{text_color};">
-            <div style="
-                color:{color};
-                font-size:13px;
-                font-weight:800;
-                letter-spacing:.08em;
-                margin-bottom:6px;">{eyebrow}</div>
-            <div style="
-                color:{text_color};
-                font-size:24px;
-                font-weight:800;
-                line-height:1.18;
-                margin-bottom:7px;">{title}</div>
-            <div style="
-                color:{body_color};
-                font-size:15px;
-                line-height:1.6;">{body}</div>
-        </div>
+        header,
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"] {
+            display: none;
+        }
+
+        .block-container {
+            max-width: 474px;
+            padding: 18px 12px 28px;
+        }
+
+        h1, h2, h3, p {
+            color: var(--ink);
+            letter-spacing: 0;
+        }
+
+        .phone-shell {
+            position: relative;
+            overflow: hidden;
+            min-height: 828px;
+            border: 12px solid #111412;
+            border-radius: 46px;
+            background: var(--paper);
+            box-shadow: 0 28px 74px rgba(18, 42, 26, .32);
+        }
+
+        .phone-shell::before {
+            content: "";
+            position: absolute;
+            z-index: 5;
+            top: 12px;
+            left: 50%;
+            width: 124px;
+            height: 34px;
+            transform: translateX(-50%);
+            border-radius: 999px;
+            background: #050705;
+        }
+
+        .status-bar {
+            position: relative;
+            z-index: 6;
+            display: flex;
+            justify-content: space-between;
+            padding: 26px 28px 10px;
+            color: #101a12;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .app-screen {
+            min-height: 708px;
+            padding: 18px 22px 98px;
+        }
+
+        .top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--leaf);
+            font-size: 23px;
+            font-weight: 900;
+        }
+
+        .leaf-mark {
+            position: relative;
+            width: 26px;
+            height: 26px;
+        }
+
+        .leaf-mark::before,
+        .leaf-mark::after {
+            content: "";
+            position: absolute;
+            border-radius: 22px 22px 4px 22px;
+            background: linear-gradient(135deg, #83bf54, #2f7b3f);
+            transform: rotate(-38deg);
+        }
+
+        .leaf-mark::before {
+            width: 18px;
+            height: 24px;
+            left: 8px;
+        }
+
+        .leaf-mark::after {
+            width: 14px;
+            height: 20px;
+            left: 0;
+            top: 7px;
+            opacity: .75;
+            transform: rotate(34deg);
+        }
+
+        .icon-button {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .82);
+            border: 1px solid var(--line);
+            box-shadow: 0 10px 24px rgba(32, 58, 32, .11);
+            color: var(--leaf-dark);
+            font-weight: 900;
+        }
+
+        .tap-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .tap-link:visited {
+            color: inherit;
+        }
+
+        .title {
+            margin: 20px 0 5px;
+            font-size: 24px;
+            line-height: 1.08;
+            font-weight: 900;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .scan-card {
+            display: grid;
+            grid-template-columns: 52px 1fr 42px;
+            gap: 14px;
+            align-items: center;
+            margin: 18px 0 22px;
+            padding: 18px;
+            border-radius: 20px;
+            color: white;
+            background: linear-gradient(135deg, #65ad58 0%, #25743d 100%);
+            box-shadow: 0 18px 34px rgba(37, 116, 61, .28);
+        }
+
+        .scan-symbol {
+            display: grid;
+            place-items: center;
+            width: 52px;
+            height: 52px;
+            border: 2px dashed rgba(255, 255, 255, .78);
+            border-radius: 18px;
+            font-size: 22px;
+            font-weight: 900;
+        }
+
+        .round-arrow {
+            display: grid;
+            place-items: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .92);
+            color: var(--leaf);
+            font-size: 24px;
+            font-weight: 900;
+        }
+
+        .section-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 18px 0 10px;
+            font-size: 15px;
+            font-weight: 900;
+        }
+
+        .section-line span:last-child {
+            color: var(--leaf);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .ingredient-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .ingredient-card,
+        .recipe-card,
+        .metric-pill,
+        .product-card,
+        .step-card,
+        .note-row {
+            border: 1px solid var(--line);
+            background: rgba(255, 253, 247, .92);
+            box-shadow: 0 10px 26px rgba(42, 70, 39, .08);
+        }
+
+        .ingredient-card {
+            position: relative;
+            min-height: 86px;
+            padding: 10px 7px;
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .count-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #dff0bd;
+            color: var(--leaf-dark);
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 18px;
+        }
+
+        .food-art {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            margin: 3px auto 7px;
+        }
+
+        .food-art::before,
+        .food-art::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+        }
+
+        .food-art.tomato::before {
+            inset: 9px 5px 4px;
+            background: radial-gradient(circle at 34% 30%, #ff9571 0 16%, #e74e31 17% 100%);
+        }
+
+        .food-art.tomato::after {
+            width: 18px;
+            height: 12px;
+            left: 13px;
+            top: 3px;
+            border-radius: 70% 10% 70% 10%;
+            background: #5b9f3b;
+            transform: rotate(-20deg);
+        }
+
+        .food-art.leaf::before,
+        .food-art.basil::before {
+            width: 28px;
+            height: 34px;
+            left: 7px;
+            top: 4px;
+            border-radius: 28px 28px 4px 28px;
+            background: linear-gradient(135deg, #98cc66, #3b8c42);
+            transform: rotate(-28deg);
+        }
+
+        .food-art.leaf::after,
+        .food-art.basil::after {
+            width: 21px;
+            height: 26px;
+            right: 3px;
+            top: 11px;
+            border-radius: 24px 24px 4px 24px;
+            background: linear-gradient(135deg, #b8db7b, #58a045);
+            transform: rotate(28deg);
+        }
+
+        .food-art.egg::before {
+            inset: 4px 8px;
+            background: linear-gradient(145deg, #fff5d5, #e8c99b);
+            box-shadow: inset -5px -7px 10px rgba(172, 122, 56, .13);
+        }
+
+        .food-art.cheese::before {
+            width: 35px;
+            height: 29px;
+            left: 4px;
+            top: 8px;
+            border-radius: 7px 14px 7px 7px;
+            background: #f2bd58;
+            clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 100%);
+        }
+
+        .food-art.cheese::after {
+            width: 7px;
+            height: 7px;
+            left: 20px;
+            top: 20px;
+            background: #d89a30;
+            box-shadow: 10px 5px 0 #d89a30;
+        }
+
+        .food-art.cream::before {
+            width: 24px;
+            height: 34px;
+            left: 9px;
+            top: 5px;
+            border-radius: 8px;
+            background: linear-gradient(#fff8dc, #e8d4a8);
+            border: 2px solid rgba(150, 116, 70, .18);
+        }
+
+        .food-art.garlic::before {
+            inset: 8px 7px 3px;
+            background: linear-gradient(#fff4dc, #e9cfa9);
+            border-radius: 52% 52% 45% 45%;
+        }
+
+        .food-art.pasta::before {
+            inset: 10px 4px;
+            border: 5px solid #f2bd58;
+            background: transparent;
+            box-shadow: 9px 1px 0 -1px #f2bd58, -8px 2px 0 -1px #f2bd58;
+        }
+
+        .ingredient-card strong {
+            display: block;
+            overflow: hidden;
+            color: var(--ink);
+            font-size: 11px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .recipe-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .recipe-card {
+            overflow: hidden;
+            border-radius: 18px;
+        }
+
+        .recipe-image,
+        .hero-food {
+            position: relative;
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 50% 48%, #fff8df 0 28%, transparent 29%),
+                radial-gradient(circle at 44% 45%, #ec5134 0 4%, transparent 5%),
+                radial-gradient(circle at 57% 53%, #438f45 0 5%, transparent 6%),
+                linear-gradient(135deg, #f7df9e, #9ecb71);
+        }
+
+        .recipe-image {
+            height: 92px;
+        }
+
+        .plate {
+            position: relative;
+            width: 82px;
+            height: 58px;
+            border-radius: 50%;
+            background: #fff9df;
+            box-shadow: inset 0 0 0 7px #fffdf8, 0 8px 18px rgba(101, 80, 30, .18);
+        }
+
+        .plate::before {
+            content: "";
+            position: absolute;
+            inset: 18px 12px;
+            border-top: 5px solid #efbe57;
+            border-bottom: 5px solid #efbe57;
+            border-radius: 50%;
+            transform: rotate(-10deg);
+        }
+
+        .plate::after {
+            content: "";
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            left: 24px;
+            top: 18px;
+            border-radius: 999px;
+            background: #e85235;
+            box-shadow: 22px 9px 0 #e85235, 13px -2px 0 #4d9747;
+        }
+
+        .recipe-body {
+            padding: 11px;
+        }
+
+        .recipe-body strong {
+            display: block;
+            min-height: 32px;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+
+        .recipe-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 9px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .promo-callout {
+            display: grid;
+            grid-template-columns: 50px 1fr 38px;
+            gap: 12px;
+            align-items: center;
+            margin-top: 20px;
+            padding: 14px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #ffe5d2, #fff0b8);
+        }
+
+        .basket-icon {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            border-radius: 13px;
+            background: #f3ae34;
+        }
+
+        .basket-icon::before {
+            content: "";
+            position: absolute;
+            width: 18px;
+            height: 12px;
+            left: 10px;
+            top: -2px;
+            border: 3px solid #fff1c5;
+            border-bottom: 0;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .hero-food {
+            height: 292px;
+            margin: -18px -22px 0;
+            border-bottom-left-radius: 30px;
+            border-bottom-right-radius: 30px;
+        }
+
+        .hero-food .plate {
+            width: 210px;
+            height: 148px;
+        }
+
+        .hero-food .plate::before {
+            inset: 43px 28px;
+            border-top-width: 11px;
+            border-bottom-width: 11px;
+        }
+
+        .hero-food .plate::after {
+            width: 20px;
+            height: 20px;
+            left: 60px;
+            top: 47px;
+            box-shadow: 54px 22px 0 #e85235, 34px -10px 0 #4d9747, 72px -3px 0 #4d9747;
+        }
+
+        .floating-actions {
+            position: absolute;
+            top: 86px;
+            right: 22px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .detail-sheet {
+            position: relative;
+            margin-top: -22px;
+            padding: 22px 4px 0;
+            border-radius: 28px 28px 0 0;
+            background: var(--paper);
+        }
+
+        .detail-sheet h1,
+        .cart-title {
+            margin: 0 0 8px;
+            font-size: 27px;
+            line-height: 1.08;
+            font-weight: 900;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin: 18px 0;
+        }
+
+        .metric-pill {
+            border-radius: 15px;
+            padding: 11px 8px;
+            text-align: center;
+        }
+
+        .metric-pill strong {
+            display: block;
+            font-size: 13px;
+        }
+
+        .metric-pill span {
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        .missing-strip {
+            display: grid;
+            grid-template-columns: 44px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            margin-top: 18px;
+            padding: 14px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #fff0b8, #ffe4c9);
+        }
+
+        .mini-button {
+            padding: 10px 13px;
+            border-radius: 12px;
+            color: white;
+            background: var(--orange);
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        .delivery {
+            display: grid;
+            grid-template-columns: 42px 1fr;
+            gap: 12px;
+            align-items: center;
+            margin: 18px 0 10px;
+            padding: 13px;
+            border-radius: 18px;
+            background: var(--mint);
+        }
+
+        .product-card {
+            display: grid;
+            grid-template-columns: 48px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 18px;
+        }
+
+        .product-card strong {
+            display: block;
+            font-size: 14px;
+        }
+
+        .price {
+            margin-top: 6px;
+            color: var(--ink);
+            font-weight: 900;
+        }
+
+        .qty {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--leaf);
+            font-weight: 900;
+        }
+
+        .note-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 15px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .total-box {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 17px;
+            background: linear-gradient(135deg, #f5f9df, #e6f1d2);
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        .total-row.big {
+            margin-top: 12px;
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--leaf);
+        }
+
+        .order-button,
+        .cook-button {
+            display: grid;
+            place-items: center;
+            min-height: 54px;
+            margin-top: 14px;
+            border-radius: 999px;
+            color: white;
+            font-weight: 900;
+        }
+
+        .order-button {
+            background: linear-gradient(135deg, #ff7850, #ff563d);
+            box-shadow: 0 16px 26px rgba(255, 91, 62, .26);
+        }
+
+        .cook-button {
+            background: linear-gradient(135deg, #3f9a4c, #28753d);
+            box-shadow: 0 16px 26px rgba(47, 123, 63, .24);
+        }
+
+        .step-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .step-card {
+            display: grid;
+            grid-template-columns: 32px 1fr;
+            gap: 10px;
+            padding: 13px;
+            border-radius: 16px;
+        }
+
+        .step-card b {
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background: var(--mint);
+            color: var(--leaf);
+        }
+
+        .scan-input-card {
+            padding: 18px;
+            border-radius: 24px;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+
+        .scan-illustration {
+            position: relative;
+            height: 190px;
+            margin-bottom: 18px;
+            border-radius: 28px;
+            background:
+                linear-gradient(90deg, rgba(47, 123, 63, .10) 0 1px, transparent 1px 42px),
+                linear-gradient(#ecf6df, #fff5d8);
+            overflow: hidden;
+        }
+
+        .fridge {
+            position: absolute;
+            left: 92px;
+            top: 24px;
+            width: 136px;
+            height: 145px;
+            border: 7px solid rgba(70, 125, 92, .55);
+            border-radius: 28px;
+            background: rgba(226, 246, 222, .62);
+            box-shadow: inset 0 0 0 3px rgba(255,255,255,.8);
+        }
+
+        .fridge::before,
+        .fridge::after {
+            content: "";
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            height: 3px;
+            background: rgba(70, 125, 92, .34);
+        }
+
+        .fridge::before { top: 48px; }
+        .fridge::after { top: 94px; }
+
+        .produce-bowl {
+            position: absolute;
+            left: 32px;
+            bottom: 20px;
+            width: 88px;
+            height: 42px;
+            border-radius: 10px 10px 44px 44px;
+            background: #d89a44;
+        }
+
+        .produce-bowl::before {
+            content: "";
+            position: absolute;
+            left: 15px;
+            top: -22px;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            background: #e85235;
+            box-shadow: 28px 2px 0 #efbe57, 42px -14px 0 #5ba246;
+        }
+
+        div[data-testid="stTextArea"] textarea {
+            min-height: 110px !important;
+            border-radius: 18px;
+            border-color: var(--line);
+            background: rgba(255, 253, 247, .96);
+            color: var(--ink);
+            font-size: 16px;
+        }
+
+        div[data-testid="stRadio"] {
+            margin-top: -82px;
+            padding: 0 26px 20px;
+        }
+
+        div[data-testid="stRadio"] > label {
+            display: none;
+        }
+
+        div[data-testid="stRadio"] [role="radiogroup"] {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            padding: 10px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: rgba(255, 253, 247, .94);
+            box-shadow: 0 -10px 28px rgba(42, 70, 39, .08);
+            backdrop-filter: blur(14px);
+        }
+
+        div[data-testid="stRadio"] [role="radio"] {
+            justify-content: center;
+            min-height: 48px;
+            padding: 0 4px;
+            border-radius: 16px;
+            color: #596654;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        div[data-testid="stRadio"] [aria-checked="true"] {
+            background: var(--mint);
+            color: var(--leaf);
+        }
+
+        div[data-testid="stRadio"] [role="radio"] > div:first-child {
+            display: none;
+        }
+
+        .action-panel {
+            margin: 12px 26px 0;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: rgba(255, 253, 247, .94);
+            box-shadow: 0 14px 32px rgba(42, 70, 39, .10);
+        }
+
+        .action-panel h3 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        .action-panel p {
+            margin: 0 0 12px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .stButton > button {
+            min-height: 54px;
+            border: 0;
+            border-radius: 999px;
+            color: #fffdf7;
+            background: linear-gradient(135deg, #3f9a4c, #28753d);
+            box-shadow: 0 16px 26px rgba(47, 123, 63, .24);
+            font-weight: 900;
+        }
+
+        @media (max-width: 520px) {
+            .block-container {
+                max-width: none;
+                padding: 0;
+            }
+
+            .phone-shell {
+                min-height: 100svh;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            .phone-shell::before {
+                display: none;
+            }
+
+            .status-bar {
+                padding-top: 16px;
+            }
+
+            .app-screen {
+                min-height: calc(100svh - 92px);
+            }
+
+            div[data-testid="stRadio"] {
+                margin-top: -86px;
+            }
+
+            .action-panel {
+                margin-left: 14px;
+                margin-right: 14px;
+            }
+        }
+        </style>
         """
     )
 
 
-def source_block(source):
-    st.html(
-        f"""
-        <div style="
-            background:{source['bg']};
-            border:1px solid rgba(37,33,28,.14);
-            border-top:7px solid {source['color']};
-            min-height:155px;
-            padding:16px;
-            margin-bottom:12px;
-            color:#25211c;">
-            <div style="font-size:20px;font-weight:800;margin-bottom:4px;">{source['name']}</div>
-            <div style="color:#75695e;font-size:13px;margin-bottom:16px;">{source['type']}</div>
-            <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{source['offer']}</div>
-            <div style="color:#75695e;font-size:14px;">{source['inventory']}</div>
-            <div style="
-                color:{source['color']};
-                font-size:13px;
-                font-weight:800;
-                margin-top:12px;">{source['link']}</div>
-        </div>
-        """
-    )
+def money(value):
+    try:
+        return f"${float(value):.2f}"
+    except (TypeError, ValueError):
+        return "$0.00"
 
 
-def cover_block():
-    st.html(
-        """
-        <div style="
-            background:#25211c;
-            color:#fffaf1;
-            border-top:10px solid #2f6f4e;
-            padding:30px 28px 26px;
-            margin:6px 0 20px;">
-            <div style="
-                color:#e7c96f;
-                font-size:13px;
-                font-weight:900;
-                letter-spacing:.1em;
-                margin-bottom:18px;">零售媒體專題展示</div>
-            <div style="
-                font-size:48px;
-                font-weight:900;
-                line-height:1.02;
-                margin-bottom:14px;">從冰箱到購物車</div>
-            <div style="
-                color:#e9ddcd;
-                font-size:18px;
-                line-height:1.65;
-                max-width:700px;">AI 如何把消費者的晚餐意圖，轉成促銷商品、合作通路與可衡量的零售媒體收入。</div>
-        </div>
-        """
-    )
+def esc(value):
+    return html.escape(str(value), quote=True)
 
 
-def insight_strip():
-    col1, col2, col3 = st.columns(3)
-    insights = [
-        ("01", "食材就是需求訊號", "冰箱裡已有什麼，代表消費者今晚最接近下單的料理方向。", "#eef7f1"),
-        ("02", "促銷不再只是折扣", "商品推薦跟著晚餐情境出現，品牌版位自然接近購買決策。", "#fff0eb"),
-        ("03", "主管看得到數字", "推薦品項、加購金額、媒體版位都能轉成商業成效。", "#fff8df"),
-    ]
-    for column, item in zip((col1, col2, col3), insights):
-        number, title, body, bg = item
-        with column:
-            st.html(
-                f"""
-                <div style="
-                    background:{bg};
-                    border:1px solid rgba(37,33,28,.16);
-                    min-height:176px;
-                    padding:18px;
-                    color:#25211c;">
-                    <div style="color:#2f6f4e;font-size:13px;font-weight:900;margin-bottom:16px;">{number}</div>
-                    <div style="font-size:20px;font-weight:900;line-height:1.2;margin-bottom:10px;">{title}</div>
-                    <div style="color:#65594f;font-size:14px;line-height:1.55;">{body}</div>
-                </div>
-                """
-            )
+def app_href(screen, **params):
+    query = {"screen": screen, **{key: value for key, value in params.items() if value is not None}}
+    return "?" + "&".join(f"{quote(str(key))}={quote(str(value))}" for key, value in query.items())
+
+
+def tone_for(name):
+    lower = name.lower()
+    if "tomato" in lower:
+        return "tomato"
+    if "spinach" in lower or "basil" in lower or "leaf" in lower:
+        return "leaf"
+    if "egg" in lower:
+        return "egg"
+    if "cheese" in lower or "parmesan" in lower:
+        return "cheese"
+    if "cream" in lower or "milk" in lower:
+        return "cream"
+    if "garlic" in lower:
+        return "garlic"
+    if "pasta" in lower:
+        return "pasta"
+    return "leaf"
 
 
 def read_runtime_config():
@@ -237,28 +999,57 @@ def read_runtime_config():
         api_key = st.secrets.get("api_key")
         model = next((st.secrets.get(key) for key in MODEL_SECRET_KEYS if st.secrets.get(key)), None)
     except Exception:
-        return {
-            "ready": False,
-            "api_key": "",
-            "model": "",
-            "error": "尚未設定 Streamlit 密鑰。請加入 api_key 與 default_model。",
-        }
+        return {"ready": False, "api_key": "", "model": "", "error": "Add api_key and default_model in Streamlit secrets."}
 
     missing = []
     if not api_key:
         missing.append("api_key")
     if not model:
-        missing.append("default_model 或 model")
+        missing.append("default_model or model")
 
     if missing:
         return {
             "ready": False,
             "api_key": "",
             "model": "",
-            "error": f"缺少必要設定：{', '.join(missing)}。",
+            "error": f"Missing Streamlit secret: {', '.join(missing)}.",
         }
 
     return {"ready": True, "api_key": api_key, "model": model, "error": ""}
+
+
+def parse_ingredients(value):
+    parts = re.split(r"[,，\n]+", value or "")
+    return [part.strip().title() for part in parts if part.strip()]
+
+
+def local_plan_from_ingredients(ingredients):
+    owned = ingredients or parse_ingredients(SAMPLE_INGREDIENTS)
+    plan = dict(FALLBACK_PLAN)
+    plan["owned_ingredients"] = owned
+    lower_owned = " ".join(owned).lower()
+    recommended = []
+    for item in PROMO_CATALOG:
+        name = item["name"]
+        if name.lower() not in lower_owned and len(recommended) < 3:
+            recommended.append(
+                {
+                    "name": name,
+                    "reason": item["reason"],
+                    "estimated_price": item["price"],
+                }
+            )
+
+    if not recommended:
+        recommended = FALLBACK_PLAN["recommended_products"]
+
+    plan["recommended_products"] = recommended
+    plan["missing_items"] = [product["name"] for product in recommended]
+    plan["cart_summary"] = {
+        "item_count": len(recommended),
+        "estimated_total": round(sum(product["estimated_price"] for product in recommended), 2),
+    }
+    return plan
 
 
 def clean_response(raw):
@@ -269,68 +1060,21 @@ def clean_response(raw):
 
 def catalog_as_prompt():
     return "\n".join(
-        f"- {item['商品']} / {item['分類']} / NT${item['價格']} / {item['促銷主題']}"
+        f"- {item['name']} / {item['category']} / ${item['price']:.2f} / {item['reason']}"
         for item in PROMO_CATALOG
     )
 
 
-def render_retail_media_banner():
-    st.header("跨頁廣告版位")
-    color_block(
-        "本週主推：高蛋白晚餐購物籃",
-        "模擬品牌贊助版位：雞胸肉、雞蛋、豆腐與冷藏料理商品。重點是跟著使用者的晚餐需求出現，而不是單純插入廣告。",
-        eyebrow="Sponsored Placement",
-        bg="#25211c",
-        color="#e7c96f",
-        text_color="#fffaf1",
-        body_color="#e9ddcd",
-    )
-
-
-def render_partner_sources():
-    st.header("合作通路版面")
-    cols = st.columns(2)
-    for index, source in enumerate(PARTNER_SOURCES):
-        with cols[index % 2]:
-            source_block(source)
-
-
-def render_business_impact(plan):
-    products = plan.get("recommended_products", [])
-    cart = plan.get("cart_summary", {})
-    estimated_total = cart.get("estimated_total", 0)
-    item_count = cart.get("item_count", len(products))
-    sponsored_slots = max(1, min(3, len(products)))
-
-    st.header("主管看得懂的三個數字")
-    color_block(
-        "把晚餐意圖轉成可衡量的零售機會",
-        "這個區塊讓主管看到：系統不只是生成食譜，而是把消費者需求轉成促銷商品、加購金額與可銷售媒體版位。",
-        eyebrow="Business View",
-        bg="#ecdfcb",
-        color="#2f6f4e",
-    )
-    col1, col2, col3 = st.columns(3)
-    col1.metric("可加入購物車商品", item_count)
-    col2.metric("模擬加購金額", f"NT${estimated_total}")
-    col3.metric("可銷售版位", sponsored_slots)
-
-
 def generate_plan(api_key, model, owned_ingredients, business_goal):
     system_prompt = f"""
-你是一個服務零售通路的 AI 食材到購物車規劃引擎。
-請根據使用者家中已有食材，以及零售商促銷商品清單，產生一份實用晚餐方案。
-只有在料理邏輯與商業目標合理時，才推薦促銷商品。
-不可捏造促銷清單以外的商品名稱。
-所有輸出內容請使用繁體中文。
+You are Freshwise, a meal-to-cart engine for a mobile grocery app.
+Create one dinner recommendation from the user's existing ingredients and the retailer promotion catalog.
+Business goal: {business_goal}
 
-零售商業目標：
-{business_goal}
-
-促銷商品清單：
+Promotion catalog:
 {catalog_as_prompt()}
 
-請回傳嚴格 JSON，格式如下：
+Return only valid JSON with this shape:
 {{
   "meal_title": "string",
   "reasoning_summary": "string",
@@ -348,116 +1092,404 @@ def generate_plan(api_key, model, owned_ingredients, business_goal):
         model=model,
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"使用者已有食材：{owned_ingredients}"},
+            {"role": "user", "content": f"Ingredients in my fridge: {owned_ingredients}"},
         ],
         response_format={"type": "json_object"},
     )
     raw = clean_response(response.choices[0].message.content)
     match = re.search(r"(\{.*\})", raw, re.DOTALL)
     if not match:
-        raise ValueError("模型沒有回傳可解析的 JSON。")
+        raise ValueError("The model did not return JSON.")
     parsed = json.loads(match.group(1))
     if not isinstance(parsed.get("recommended_products"), list):
-        raise ValueError("模型 JSON 缺少 recommended_products。")
+        raise ValueError("The JSON is missing recommended_products.")
     return parsed
 
 
-def render_plan(plan):
-    st.header("AI 生成的晚餐購物籃")
-    with st.container(border=True):
-        st.subheader(plan.get("meal_title", "晚餐方案"))
-        st.write(plan.get("reasoning_summary", ""))
+def normalize_plan(plan):
+    merged = FALLBACK_PLAN | (plan or {})
+    merged["owned_ingredients"] = merged.get("owned_ingredients") or FALLBACK_PLAN["owned_ingredients"]
+    merged["missing_items"] = merged.get("missing_items") or FALLBACK_PLAN["missing_items"]
+    merged["recommended_products"] = merged.get("recommended_products") or FALLBACK_PLAN["recommended_products"]
+    merged["recipe_steps"] = merged.get("recipe_steps") or FALLBACK_PLAN["recipe_steps"]
 
-    owned = plan.get("owned_ingredients", [])
-    missing = plan.get("missing_items", [])
-    products = plan.get("recommended_products", [])
-    cart = plan.get("cart_summary", {})
+    total = sum(float(product.get("estimated_price", 0) or 0) for product in merged["recommended_products"])
+    cart = merged.get("cart_summary") or {}
+    cart["item_count"] = cart.get("item_count") or len(merged["recommended_products"])
+    cart["estimated_total"] = cart.get("estimated_total") or round(total, 2)
+    merged["cart_summary"] = cart
+    return merged
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("已有食材", len(owned))
-    col2.metric("推薦商品", len(products))
-    col3.metric("模擬購物車", f"NT${cart.get('estimated_total', 0)}")
 
+def sync_cart(plan):
+    quantities = st.session_state.setdefault("cart_quantities", {})
+    product_names = [product.get("name", "Ingredient") for product in plan["recommended_products"]]
+    for name in product_names:
+        quantities.setdefault(name, 1)
+    for name in list(quantities):
+        if name not in product_names:
+            del quantities[name]
+
+
+def cart_subtotal(plan):
+    quantities = st.session_state.get("cart_quantities", {})
+    total = 0.0
+    count = 0
+    for product in plan["recommended_products"]:
+        name = product.get("name", "Ingredient")
+        qty = int(quantities.get(name, 1))
+        total += float(product.get("estimated_price", 0) or 0) * qty
+        count += qty
+    return round(total, 2), count
+
+
+def handle_query_actions():
+    params = st.query_params
+    requested_screen = params.get("screen")
+    action = params.get("cart_action")
+    item = params.get("item")
+    if action and item:
+        if requested_screen in {"Home", "Recipe", "Cart", "Scan"}:
+            st.session_state["screen_picker"] = requested_screen
+        quantities = st.session_state.setdefault("cart_quantities", {})
+        current = int(quantities.get(item, 1))
+        if action == "inc":
+            quantities[item] = current + 1
+        elif action == "dec":
+            quantities[item] = max(0, current - 1)
+        st.query_params.clear()
+        st.rerun()
+
+    if requested_screen in {"Home", "Recipe", "Cart", "Scan"}:
+        st.session_state["screen_picker"] = requested_screen
+        st.query_params.clear()
+        st.rerun()
+
+
+def ingredient_cards(names, limit=4):
+    cards = []
+    for index, name in enumerate(names[:limit], start=1):
+        tone = tone_for(name)
+        cards.append(
+            f"""
+            <div class="ingredient-card">
+                <div class="count-badge">{index}</div>
+                <div class="food-art {tone}"></div>
+                <strong>{esc(name)}</strong>
+            </div>
+            """
+        )
+    return "".join(cards)
+
+
+def phone_frame(content):
+    return f"""
+    <div class="phone-shell">
+        <div class="status-bar"><span>9:41</span><span>5G  100%</span></div>
+        {content}
+    </div>
+    """
+
+
+def render_home(plan):
+    owned = list(plan["owned_ingredients"][:4])
+    while len(owned) < 4:
+        owned.append(["Tomatoes", "Eggs", "Spinach", "Cheese"][len(owned)])
+    st.html(
+        phone_frame(
+            f"""
+        <div class="app-screen">
+            <div class="top-row">
+                <div class="icon-button">=</div>
+                <div class="brand"><span class="leaf-mark"></span><span>Freshwise</span></div>
+                <div class="icon-button">!</div>
+            </div>
+            <h1 class="title">Good morning, Alex!</h1>
+            <div class="muted">Let's turn your ingredients into something amazing.</div>
+
+            <a class="tap-link scan-card" href="{app_href("Scan")}" target="_self">
+                <div class="scan-symbol">[]</div>
+                <div>
+                    <strong>Scan Your Fridge</strong>
+                    <div style="font-size:12px;opacity:.9;margin-top:4px;">Identify ingredients in seconds</div>
+                </div>
+                <div class="round-arrow">&gt;</div>
+            </a>
+
+            <div class="section-line"><span>Detected Ingredients</span><span>View all</span></div>
+            <div class="ingredient-grid">{ingredient_cards(owned, 4)}</div>
+
+            <div class="section-line"><span>Recommended Recipes</span><span>View all</span></div>
+            <div class="recipe-grid">
+                <a class="tap-link recipe-card" href="{app_href("Recipe")}" target="_self">
+                    <div class="recipe-image"><div class="plate"></div></div>
+                    <div class="recipe-body">
+                        <strong>{esc(plan["meal_title"])}</strong>
+                        <div class="recipe-meta"><span>25 min</span><span>Easy</span></div>
+                    </div>
+                </a>
+                <a class="tap-link recipe-card" href="{app_href("Recipe")}" target="_self">
+                    <div class="recipe-image"><div class="plate"></div></div>
+                    <div class="recipe-body">
+                        <strong>Veggie & Cheese Omelette</strong>
+                        <div class="recipe-meta"><span>15 min</span><span>Easy</span></div>
+                    </div>
+                </a>
+            </div>
+
+            <a class="tap-link promo-callout" href="{app_href("Cart")}" target="_self">
+                <div class="basket-icon"></div>
+                <div>
+                    <strong>Missing something?</strong>
+                    <div class="muted">Order fresh ingredients delivered to you.</div>
+                </div>
+                <div class="round-arrow">&gt;</div>
+            </a>
+        </div>
+        """
+        )
+    )
+
+
+def render_recipe(plan):
+    ingredients = (plan["owned_ingredients"] + plan["missing_items"])[:4]
+    st.html(
+        phone_frame(
+            f"""
+        <div class="app-screen">
+            <div class="top-row">
+                <div class="icon-button">&lt;</div>
+                <div></div>
+                <div style="display:flex;gap:10px;">
+                    <div class="icon-button">H</div>
+                    <div class="icon-button">S</div>
+                </div>
+            </div>
+            <div class="hero-food"><div class="plate"></div></div>
+            <div class="detail-sheet">
+                <h1>{esc(plan["meal_title"])}</h1>
+                <div class="muted">{esc(plan["reasoning_summary"])}</div>
+                <div class="metrics-grid">
+                    <div class="metric-pill"><strong>25 min</strong><span>Prep Time</span></div>
+                    <div class="metric-pill"><strong>Easy</strong><span>Difficulty</span></div>
+                    <div class="metric-pill"><strong>420</strong><span>Calories</span></div>
+                </div>
+                <div class="section-line"><span>Uses These Ingredients</span><span></span></div>
+                <div class="ingredient-grid">{ingredient_cards(ingredients, 4)}</div>
+                <a class="tap-link missing-strip" href="{app_href("Cart")}" target="_self">
+                    <div class="basket-icon"></div>
+                    <div><strong>{len(plan["missing_items"])} ingredients missing</strong><div class="muted">Add them to your order</div></div>
+                    <div class="mini-button">View</div>
+                </a>
+                <div class="section-line"><span>Steps</span><span></span></div>
+                <div class="step-list">
+                    {''.join(
+                        f'<div class="step-card"><b>{index}</b><div>{esc(step)}</div></div>'
+                        for index, step in enumerate(plan["recipe_steps"], start=1)
+                    )}
+                </div>
+                <a class="tap-link cook-button" href="{app_href("Home")}" target="_self">Cook Now</a>
+            </div>
+        </div>
+        """
+        )
+    )
+
+
+def render_cart(plan):
+    products = plan["recommended_products"]
+    subtotal, item_count = cart_subtotal(plan)
+    delivery = 1.99
+    total = subtotal + delivery
+    st.html(
+        phone_frame(
+            f"""
+        <div class="app-screen">
+            <div class="top-row">
+                <div class="icon-button">&lt;</div>
+                <div></div>
+                <div class="icon-button">3</div>
+            </div>
+            <h1 class="cart-title">Missing Ingredients</h1>
+            <div class="muted">For {esc(plan["meal_title"])}</div>
+            <div class="delivery">
+                <div class="basket-icon"></div>
+                <div><strong>Fast delivery</strong><div class="muted">Fresh to your door in as little as 60 mins.</div></div>
+            </div>
+            {''.join(
+                f'<div class="product-card"><div class="food-art {tone_for(product.get("name", ""))}"></div>'
+                f'<div><strong>{esc(product.get("name", "Ingredient"))}</strong><div class="muted">{esc(product.get("reason", ""))}</div>'
+                f'<div class="price">{money(product.get("estimated_price", 0))}</div></div>'
+                f'<div class="qty"><a class="tap-link" href="{app_href("Cart", cart_action="dec", item=product.get("name", "Ingredient"))}" target="_self">-</a> '
+                f'<span>{int(st.session_state.get("cart_quantities", {}).get(product.get("name", "Ingredient"), 1))}</span> '
+                f'<a class="tap-link" href="{app_href("Cart", cart_action="inc", item=product.get("name", "Ingredient"))}" target="_self">+</a></div></div>'
+                for product in products
+            )}
+            <div class="note-row"><span>Add a note for your shopper</span><span>&gt;</span></div>
+            <div class="total-box">
+                <div class="total-row"><span>Subtotal ({item_count} items)</span><span>{money(subtotal)}</span></div>
+                <div class="total-row"><span>Delivery Fee</span><span>{money(delivery)}</span></div>
+                <div class="total-row big"><span>Total</span><span>{money(total)}</span></div>
+            </div>
+            <a class="tap-link order-button" href="{app_href("Home")}" target="_self">Place Order - {money(total)}</a>
+            <div style="text-align:center;margin-top:10px;color:var(--leaf);font-size:12px;font-weight:800;">Secure checkout</div>
+        </div>
+        """
+        )
+    )
+
+
+def render_scan(plan, runtime_config, business_goal):
+    st.html(
+        phone_frame(
+            """
+        <div class="app-screen">
+            <div class="top-row">
+                <div class="icon-button">&lt;</div>
+                <div class="brand"><span class="leaf-mark"></span><span>Freshwise</span></div>
+                <div class="icon-button">?</div>
+            </div>
+            <h1 class="title">Scan Your Fridge</h1>
+            <div class="muted">For the Streamlit prototype, type or paste ingredients here. This screen becomes camera capture when the PWA is built.</div>
+            <div class="scan-illustration">
+                <div class="fridge"></div>
+                <div class="produce-bowl"></div>
+            </div>
+        </div>
+        """
+        )
+    )
+
+
+def render_scan_controls(runtime_config, business_goal):
+    st.html(
+        """
+        <div class="action-panel">
+            <h3>Prototype Input</h3>
+            <p>Type fridge ingredients here. This is the camera-recognition handoff point for the PWA version.</p>
+        </div>
+        """
+    )
+    owned_ingredients = st.text_area(
+        "Ingredients",
+        key="ingredient_input",
+        label_visibility="collapsed",
+        placeholder="tomatoes, spinach, eggs, cheese",
+    )
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("家中已有")
-        st.write("、".join(owned) if owned else "尚未列出已有食材。")
-
-        st.subheader("仍需補齊")
-        st.write("、".join(missing) if missing else "不需補齊其他食材。")
-
+        generate = st.button("Generate Plan", type="primary", use_container_width=True)
     with col2:
-        st.subheader("建議加入購物車")
-        for product in products:
-            with st.container(border=True):
-                st.markdown(f"**{product.get('name', '商品')}**")
-                st.caption(f"NT${product.get('estimated_price', 0)}")
-                st.write(product.get("reason", ""))
+        demo = st.button("Use Demo", use_container_width=True)
 
-    st.subheader("料理步驟")
-    for index, step in enumerate(plan.get("recipe_steps", []), start=1):
-        st.write(f"{index}. {step}")
+    if demo:
+        st.session_state["ingredient_input"] = SAMPLE_INGREDIENTS
+        st.session_state["last_plan"] = local_plan_from_ingredients(parse_ingredients(SAMPLE_INGREDIENTS))
+        st.session_state["screen_picker"] = "Home"
+        st.rerun()
 
-    render_business_impact(plan)
+    if generate:
+        ingredients = parse_ingredients(owned_ingredients)
+        if not ingredients:
+            st.warning("Add at least one ingredient first.")
+        elif not runtime_config["ready"]:
+            st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
+            st.session_state["screen_picker"] = "Home"
+            st.info("Using local demo logic because AI secrets are not configured.")
+            st.rerun()
+        else:
+            with st.spinner("Freshwise is building a meal and cart..."):
+                try:
+                    st.session_state["last_plan"] = generate_plan(
+                        runtime_config["api_key"],
+                        runtime_config["model"],
+                        owned_ingredients,
+                        business_goal,
+                    )
+                    st.session_state["screen_picker"] = "Home"
+                    st.rerun()
+                except Exception as exc:
+                    st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
+                    st.session_state["screen_picker"] = "Home"
+                    st.warning(f"AI failed, so Freshwise used local demo logic: {exc}")
+                    st.rerun()
 
-    c1, c2, c3 = st.columns(3)
-    c1.button("全部加入購物車", use_container_width=True)
-    c2.button("改用更便宜商品", use_container_width=True)
-    c3.button("改成蔬食版本", use_container_width=True)
+
+def render_cart_controls(plan):
+    st.html(
+        """
+        <div class="action-panel">
+            <h3>Cart Controls</h3>
+            <p>These controls update the prototype cart state and recalculate the in-app total.</p>
+        </div>
+        """
+    )
+    for product in plan["recommended_products"]:
+        name = product.get("name", "Ingredient")
+        qty = int(st.session_state["cart_quantities"].get(name, 1))
+        label_col, minus_col, qty_col, plus_col = st.columns([2.4, .8, .7, .8])
+        label_col.write(f"**{name}**")
+        if minus_col.button("-", key=f"minus_{name}", use_container_width=True, disabled=qty <= 0):
+            st.session_state["cart_quantities"][name] = max(0, qty - 1)
+            st.rerun()
+        qty_col.write(str(qty))
+        if plus_col.button("+", key=f"plus_{name}", use_container_width=True):
+            st.session_state["cart_quantities"][name] = qty + 1
+            st.rerun()
+
+    col1, col2 = st.columns(2)
+    if col1.button("Clear Cart", use_container_width=True):
+        for name in st.session_state["cart_quantities"]:
+            st.session_state["cart_quantities"][name] = 0
+        st.rerun()
+    if col2.button("Reset Qty", use_container_width=True):
+        for name in st.session_state["cart_quantities"]:
+            st.session_state["cart_quantities"][name] = 1
+        st.rerun()
 
 
+inject_theme()
 runtime_config = read_runtime_config()
 
-cover_block()
-insight_strip()
+if "last_plan" not in st.session_state:
+    st.session_state["last_plan"] = FALLBACK_PLAN
+if "ingredient_input" not in st.session_state:
+    st.session_state["ingredient_input"] = SAMPLE_INGREDIENTS
 
-if not runtime_config["ready"]:
-    st.error(runtime_config["error"])
-    st.info("請在 Streamlit Cloud 的應用程式設定裡加入 api_key 與 default_model 後再產生方案。")
+handle_query_actions()
 
 with st.sidebar:
-    st.title("展示設定")
+    st.title("Freshwise Settings")
     if runtime_config["ready"]:
-        st.success("密鑰已載入")
-        st.text_input("模型", value=runtime_config["model"], disabled=True)
-    business_goal = st.selectbox("零售商業目標", BUSINESS_GOALS)
-
-st.header("第一步：讀懂冰箱裡的需求")
-st.caption("這裡不是問使用者想看哪一道食譜，而是把既有食材轉成晚餐購物意圖。")
-owned_ingredients = st.text_area(
-    "這位消費者目前有什麼食材？",
-    value=SAMPLE_INGREDIENTS,
-    height=120,
-)
-
-render_retail_media_banner()
-render_partner_sources()
-
-st.header("本週貨架焦點")
-st.caption("這份清單模擬賣場或品牌希望推動的商品。AI 只能從這裡挑選合適品項，不會亂推薦不存在的商品。")
-st.dataframe(PROMO_CATALOG, use_container_width=True, hide_index=True)
-
-st.header("產生這一期的晚餐購物車")
-if st.button("產生 AI 晚餐與購物車方案", type="primary", use_container_width=True):
-    if not runtime_config["ready"]:
-        st.error(runtime_config["error"])
-    elif not owned_ingredients.strip():
-        st.warning("請至少輸入一項已有食材。")
+        st.success("AI model connected")
+        st.text_input("Model", value=runtime_config["model"], disabled=True)
     else:
-        with st.spinner("正在產生晚餐方案與模擬購物車..."):
-            try:
-                plan = generate_plan(
-                    runtime_config["api_key"],
-                    runtime_config["model"],
-                    owned_ingredients,
-                    business_goal,
-                )
-                st.session_state["last_plan"] = plan
-            except Exception as exc:
-                st.error(f"產生失敗：{exc}")
+        st.warning(runtime_config["error"])
+    business_goal = st.selectbox("Retail goal", BUSINESS_GOALS)
 
-if st.session_state.get("last_plan"):
-    render_plan(st.session_state["last_plan"])
+plan = normalize_plan(st.session_state["last_plan"])
+sync_cart(plan)
+screen = st.session_state.get("screen_picker", "Home")
 
-st.divider()
-st.caption("展示原型：目前尚未串接真實賣場 API、付款系統或正式結帳購物車。")
+if screen == "Home":
+    render_home(plan)
+elif screen == "Recipe":
+    render_recipe(plan)
+elif screen == "Cart":
+    render_cart(plan)
+else:
+    render_scan(plan, runtime_config, business_goal)
+
+if screen == "Scan":
+    render_scan_controls(runtime_config, business_goal)
+elif screen == "Cart":
+    render_cart_controls(plan)
+
+screen = st.radio(
+    "App screen",
+    ["Home", "Recipe", "Cart", "Scan"],
+    index=["Home", "Recipe", "Cart", "Scan"].index(screen),
+    horizontal=True,
+    label_visibility="collapsed",
+    key="screen_picker",
+)

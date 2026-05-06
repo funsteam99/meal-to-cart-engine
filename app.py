@@ -25,6 +25,8 @@ PARTNER_SOURCES = [
         "offer": "晚餐生鮮組合",
         "inventory": "184 個促銷品項",
         "link": "模擬結帳連結",
+        "color": "#2f6f4e",
+        "bg": "#eef7f1",
     },
     {
         "name": "城市精品超市",
@@ -32,6 +34,8 @@ PARTNER_SOURCES = [
         "offer": "冷藏即煮料理包",
         "inventory": "62 個促銷品項",
         "link": "模擬結帳連結",
+        "color": "#b84536",
+        "bg": "#fff0eb",
     },
     {
         "name": "鄰里平價市場",
@@ -39,6 +43,8 @@ PARTNER_SOURCES = [
         "offer": "家庭平價菜籃",
         "inventory": "127 個促銷品項",
         "link": "模擬結帳連結",
+        "color": "#b88308",
+        "bg": "#fff8df",
     },
     {
         "name": "產地直送農場",
@@ -46,6 +52,8 @@ PARTNER_SOURCES = [
         "offer": "當季蔬菜加購",
         "inventory": "38 個促銷品項",
         "link": "模擬結帳連結",
+        "color": "#3e6d8f",
+        "bg": "#edf6fb",
     },
 ]
 
@@ -64,6 +72,98 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed",
 )
+
+
+st.html(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(180deg, #f8f2e8 0%, #f3eadb 100%);
+    }
+    .block-container {
+        max-width: 900px;
+        padding-top: 1.2rem;
+        padding-bottom: 3rem;
+    }
+    h1, h2, h3 {
+        color: #25211c;
+    }
+    [data-testid="stMetric"] {
+        background: #fffaf1;
+        border: 1px solid #ded1be;
+        padding: 0.75rem;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: #fffaf1;
+        border-color: #ded1be;
+    }
+    </style>
+    """
+)
+
+
+def color_block(
+    title,
+    body,
+    eyebrow="",
+    bg="#fffaf1",
+    color="#2f6f4e",
+    text_color="#25211c",
+    body_color="#65594f",
+):
+    st.html(
+        f"""
+        <div style="
+            background:{bg};
+            border:1px solid rgba(37,33,28,.16);
+            border-left:8px solid {color};
+            padding:18px 20px;
+            margin:10px 0 16px;
+            color:{text_color};">
+            <div style="
+                color:{color};
+                font-size:13px;
+                font-weight:800;
+                letter-spacing:.08em;
+                margin-bottom:6px;">{eyebrow}</div>
+            <div style="
+                color:{text_color};
+                font-size:24px;
+                font-weight:800;
+                line-height:1.18;
+                margin-bottom:7px;">{title}</div>
+            <div style="
+                color:{body_color};
+                font-size:15px;
+                line-height:1.6;">{body}</div>
+        </div>
+        """
+    )
+
+
+def source_block(source):
+    st.html(
+        f"""
+        <div style="
+            background:{source['bg']};
+            border:1px solid rgba(37,33,28,.14);
+            border-top:7px solid {source['color']};
+            min-height:155px;
+            padding:16px;
+            margin-bottom:12px;
+            color:#25211c;">
+            <div style="font-size:20px;font-weight:800;margin-bottom:4px;">{source['name']}</div>
+            <div style="color:#75695e;font-size:13px;margin-bottom:16px;">{source['type']}</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:8px;">{source['offer']}</div>
+            <div style="color:#75695e;font-size:14px;">{source['inventory']}</div>
+            <div style="
+                color:{source['color']};
+                font-size:13px;
+                font-weight:800;
+                margin-top:12px;">{source['link']}</div>
+        </div>
+        """
+    )
 
 
 def read_runtime_config():
@@ -110,13 +210,15 @@ def catalog_as_prompt():
 
 def render_retail_media_banner():
     st.subheader("模擬零售媒體版位")
-    with st.container(border=True):
-        st.markdown("**本週主推：高蛋白晚餐購物籃**")
-        st.write(
-            "這裡模擬品牌贊助版位：雞胸肉、雞蛋、豆腐與冷藏料理商品。"
-            "重點是跟著使用者的晚餐需求出現，而不是單純插入廣告。"
-        )
-        st.caption("模擬廣告連結：導向指定賣場或品牌活動頁")
+    color_block(
+        "本週主推：高蛋白晚餐購物籃",
+        "模擬品牌贊助版位：雞胸肉、雞蛋、豆腐與冷藏料理商品。重點是跟著使用者的晚餐需求出現，而不是單純插入廣告。",
+        eyebrow="零售媒體版位",
+        bg="#25211c",
+        color="#e7c96f",
+        text_color="#fffaf1",
+        body_color="#e9ddcd",
+    )
 
 
 def render_partner_sources():
@@ -124,12 +226,7 @@ def render_partner_sources():
     cols = st.columns(2)
     for index, source in enumerate(PARTNER_SOURCES):
         with cols[index % 2]:
-            with st.container(border=True):
-                st.markdown(f"**{source['name']}**")
-                st.caption(source["type"])
-                st.write(source["offer"])
-                st.write(source["inventory"])
-                st.button(source["link"], key=f"partner_{index}", use_container_width=True)
+            source_block(source)
 
 
 def render_business_impact(plan):
@@ -140,7 +237,13 @@ def render_business_impact(plan):
     sponsored_slots = max(1, min(3, len(products)))
 
     st.subheader("商業成效模擬")
-    st.write("讓主管看到這不只是食譜生成，而是把晚餐意圖轉成促銷商品需求與可銷售媒體版位。")
+    color_block(
+        "把晚餐意圖轉成可衡量的零售機會",
+        "這個區塊讓主管看到：系統不只是生成食譜，而是把消費者需求轉成促銷商品、加購金額與可銷售媒體版位。",
+        eyebrow="主管視角",
+        bg="#ecdfcb",
+        color="#2f6f4e",
+    )
     col1, col2, col3 = st.columns(3)
     col1.metric("可加入購物車商品", item_count)
     col2.metric("模擬加購金額", f"NT${estimated_total}")
@@ -239,8 +342,13 @@ def render_plan(plan):
 
 runtime_config = read_runtime_config()
 
-st.title("AI 食材到購物車引擎")
-st.caption("把冰箱現有食材、賣場促銷商品與晚餐需求，轉成可加購、可衡量、可銷售的零售方案。")
+color_block(
+    "AI 食材到購物車引擎",
+    "把冰箱現有食材、賣場促銷商品與晚餐需求，轉成可加購、可衡量、可銷售的零售方案。",
+    eyebrow="賣場與品牌通路展示原型",
+    bg="#fffaf1",
+    color="#2f6f4e",
+)
 
 if not runtime_config["ready"]:
     st.error(runtime_config["error"])

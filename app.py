@@ -1,6 +1,7 @@
 import html
 import json
 import re
+import base64
 from urllib.parse import quote
 
 import streamlit as st
@@ -131,7 +132,7 @@ def inject_theme():
 
         .block-container {
             max-width: 474px;
-            padding: 18px 12px 28px;
+            padding: 12px 12px 32px;
         }
 
         h1, h2, h3, p {
@@ -141,25 +142,16 @@ def inject_theme():
 
         .phone-shell {
             position: relative;
-            overflow: hidden;
-            min-height: 828px;
-            border: 12px solid #111412;
-            border-radius: 46px;
+            overflow: visible;
+            min-height: auto;
+            border: 1px solid var(--line);
+            border-radius: 32px;
             background: var(--paper);
-            box-shadow: 0 28px 74px rgba(18, 42, 26, .32);
+            box-shadow: 0 18px 42px rgba(18, 42, 26, .12);
         }
 
         .phone-shell::before {
-            content: "";
-            position: absolute;
-            z-index: 5;
-            top: 12px;
-            left: 50%;
-            width: 124px;
-            height: 34px;
-            transform: translateX(-50%);
-            border-radius: 999px;
-            background: #050705;
+            display: none;
         }
 
         .status-bar {
@@ -167,15 +159,15 @@ def inject_theme():
             z-index: 6;
             display: flex;
             justify-content: space-between;
-            padding: 26px 28px 10px;
+            padding: 16px 22px 4px;
             color: #101a12;
             font-size: 14px;
             font-weight: 800;
         }
 
         .app-screen {
-            min-height: 708px;
-            padding: 18px 22px 98px;
+            min-height: auto;
+            padding: 16px 18px 22px;
         }
 
         .top-row {
@@ -709,6 +701,71 @@ def inject_theme():
             font-size: 13px;
         }
 
+        .ingredient-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .ingredient-row-card {
+            display: grid;
+            grid-template-columns: 48px 1fr 34px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: rgba(255, 253, 247, .92);
+            box-shadow: 0 10px 26px rgba(42, 70, 39, .08);
+        }
+
+        .confidence {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            color: var(--leaf);
+            background: var(--mint);
+            font-size: 11px;
+            font-weight: 900;
+        }
+
+        .future-card {
+            display: grid;
+            grid-template-columns: 48px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            margin-top: 14px;
+            padding: 14px;
+            border: 1px dashed rgba(47, 123, 63, .34);
+            border-radius: 18px;
+            background: rgba(237, 247, 223, .58);
+        }
+
+        .success-burst {
+            position: relative;
+            display: grid;
+            place-items: center;
+            width: 128px;
+            height: 128px;
+            margin: 48px auto 24px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #8fc95c, #2f7b3f);
+            box-shadow: 0 22px 42px rgba(47, 123, 63, .26);
+            color: white;
+            font-size: 58px;
+            font-weight: 900;
+        }
+
+        .success-card {
+            padding: 20px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: rgba(255, 253, 247, .94);
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
         .total-box {
             margin-top: 14px;
             padding: 14px;
@@ -851,8 +908,8 @@ def inject_theme():
         }
 
         div[data-testid="stRadio"] {
-            margin-top: -82px;
-            padding: 0 26px 20px;
+            margin-top: 12px;
+            padding: 0;
         }
 
         div[data-testid="stRadio"] > label {
@@ -867,7 +924,7 @@ def inject_theme():
             border: 1px solid var(--line);
             border-radius: 24px;
             background: rgba(255, 253, 247, .94);
-            box-shadow: 0 -10px 28px rgba(42, 70, 39, .08);
+            box-shadow: 0 12px 28px rgba(42, 70, 39, .08);
             backdrop-filter: blur(14px);
         }
 
@@ -891,7 +948,7 @@ def inject_theme():
         }
 
         .action-panel {
-            margin: 12px 26px 0;
+            margin: 12px 0 0;
             padding: 14px;
             border: 1px solid var(--line);
             border-radius: 24px;
@@ -923,13 +980,13 @@ def inject_theme():
         @media (max-width: 520px) {
             .block-container {
                 max-width: none;
-                padding: 0;
+                padding: 0 10px 24px;
             }
 
             .phone-shell {
-                min-height: 100svh;
+                min-height: auto;
                 border: 0;
-                border-radius: 0;
+                border-radius: 0 0 28px 28px;
                 box-shadow: none;
             }
 
@@ -942,11 +999,11 @@ def inject_theme():
             }
 
             .app-screen {
-                min-height: calc(100svh - 92px);
+                min-height: auto;
             }
 
             div[data-testid="stRadio"] {
-                margin-top: -86px;
+                margin-top: 12px;
             }
 
             .action-panel {
@@ -1052,6 +1109,10 @@ def local_plan_from_ingredients(ingredients):
     return plan
 
 
+def current_ingredients():
+    return st.session_state.setdefault("detected_ingredients", parse_ingredients(SAMPLE_INGREDIENTS))
+
+
 def clean_response(raw):
     raw = re.sub(r"<thought>.*?</thought>", "", raw, flags=re.DOTALL | re.IGNORECASE)
     raw = re.sub(r"```[a-zA-Z]*\n?|```", "", raw)
@@ -1106,6 +1167,89 @@ Return only valid JSON with this shape:
     return parsed
 
 
+def recognize_ingredients_from_image(api_key, model, image_bytes):
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    client = OpenAI(api_key=api_key, base_url=DEFAULT_BASE_URL)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are Freshwise's fridge image recognition engine. "
+                    "Identify visible food ingredients from the image. "
+                    "Return only valid JSON like {\"ingredients\":[\"Tomatoes\",\"Spinach\"]}. "
+                    "Use common grocery names and do not include non-food objects."
+                ),
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Identify ingredients visible in this fridge or food photo."},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+                    },
+                ],
+            },
+        ],
+        response_format={"type": "json_object"},
+    )
+    raw = clean_response(response.choices[0].message.content)
+    match = re.search(r"(\{.*\})", raw, re.DOTALL)
+    if not match:
+        raise ValueError("The model did not return ingredient JSON.")
+    parsed = json.loads(match.group(1))
+    ingredients = parsed.get("ingredients", [])
+    if not isinstance(ingredients, list):
+        raise ValueError("The JSON is missing an ingredients list.")
+    return [str(item).strip().title() for item in ingredients if str(item).strip()]
+
+
+def generate_recipe_from_current_ingredients(runtime_config, business_goal):
+    ingredients = current_ingredients()
+    ingredient_text = ", ".join(ingredients)
+    if runtime_config["ready"]:
+        try:
+            plan = generate_plan(
+                runtime_config["api_key"],
+                runtime_config["model"],
+                ingredient_text,
+                business_goal,
+            )
+            st.session_state["last_plan"] = plan
+            st.session_state["generation_notice"] = "Generated with the configured multimodal model."
+            return plan
+        except Exception as exc:
+            st.session_state["generation_notice"] = f"Model generation failed; using demo fallback. ({exc})"
+    else:
+        st.session_state["generation_notice"] = "API secrets are missing; using demo fallback."
+
+    plan = local_plan_from_ingredients(ingredients)
+    st.session_state["last_plan"] = plan
+    return plan
+
+
+def recognize_photo_into_ingredients(runtime_config, image_bytes):
+    if runtime_config["ready"]:
+        try:
+            ingredients = recognize_ingredients_from_image(
+                runtime_config["api_key"],
+                runtime_config["model"],
+                image_bytes,
+            )
+            st.session_state["detected_ingredients"] = ingredients
+            st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
+            st.session_state["generation_notice"] = "Photo recognized with the configured multimodal model."
+            return ingredients
+        except Exception as exc:
+            st.session_state["generation_notice"] = f"Image recognition failed; please confirm manually. ({exc})"
+            return []
+
+    st.session_state["generation_notice"] = "API secrets are missing; photo recognition needs the multimodal model."
+    return []
+
+
 def normalize_plan(plan):
     merged = FALLBACK_PLAN | (plan or {})
     merged["owned_ingredients"] = merged.get("owned_ingredients") or FALLBACK_PLAN["owned_ingredients"]
@@ -1148,8 +1292,43 @@ def handle_query_actions():
     requested_screen = params.get("screen")
     action = params.get("cart_action")
     item = params.get("item")
+    future = params.get("future")
+    remove_ingredient = params.get("remove_ingredient")
+    order = params.get("order")
+    generate_recipe = params.get("generate_recipe")
+
+    valid_screens = {"Home", "Ingredients", "Recipe", "Cart", "Scan", "OrderSuccess"}
+
+    if generate_recipe:
+        generate_recipe_from_current_ingredients(st.session_state["runtime_config"], st.session_state["business_goal"])
+        st.session_state["screen_picker"] = "Recipe"
+        st.query_params.clear()
+        st.rerun()
+
+    if future:
+        st.session_state["future_notice"] = f"{future.replace('_', ' ').title()} is reserved for the PWA version."
+        if requested_screen in valid_screens:
+            st.session_state["screen_picker"] = requested_screen
+        st.query_params.clear()
+        st.rerun()
+
+    if remove_ingredient:
+        ingredients = [name for name in current_ingredients() if name != remove_ingredient]
+        st.session_state["detected_ingredients"] = ingredients
+        if requested_screen in valid_screens:
+            st.session_state["screen_picker"] = requested_screen
+        st.query_params.clear()
+        st.rerun()
+
+    if order == "place":
+        subtotal, item_count = cart_subtotal(normalize_plan(st.session_state.get("last_plan", FALLBACK_PLAN)))
+        st.session_state["last_order"] = {"subtotal": subtotal, "item_count": item_count}
+        st.session_state["screen_picker"] = "OrderSuccess"
+        st.query_params.clear()
+        st.rerun()
+
     if action and item:
-        if requested_screen in {"Home", "Recipe", "Cart", "Scan"}:
+        if requested_screen in valid_screens:
             st.session_state["screen_picker"] = requested_screen
         quantities = st.session_state.setdefault("cart_quantities", {})
         current = int(quantities.get(item, 1))
@@ -1160,7 +1339,7 @@ def handle_query_actions():
         st.query_params.clear()
         st.rerun()
 
-    if requested_screen in {"Home", "Recipe", "Cart", "Scan"}:
+    if requested_screen in valid_screens:
         st.session_state["screen_picker"] = requested_screen
         st.query_params.clear()
         st.rerun()
@@ -1192,7 +1371,7 @@ def phone_frame(content):
 
 
 def render_home(plan):
-    owned = list(plan["owned_ingredients"][:4])
+    owned = list(current_ingredients()[:4])
     while len(owned) < 4:
         owned.append(["Tomatoes", "Eggs", "Spinach", "Cheese"][len(owned)])
     st.html(
@@ -1216,7 +1395,7 @@ def render_home(plan):
                 <div class="round-arrow">&gt;</div>
             </a>
 
-            <div class="section-line"><span>Detected Ingredients</span><span>View all</span></div>
+            <div class="section-line"><span>Detected Ingredients</span><a class="tap-link" href="{app_href("Ingredients")}" target="_self">View all</a></div>
             <div class="ingredient-grid">{ingredient_cards(owned, 4)}</div>
 
             <div class="section-line"><span>Recommended Recipes</span><span>View all</span></div>
@@ -1258,11 +1437,11 @@ def render_recipe(plan):
             f"""
         <div class="app-screen">
             <div class="top-row">
-                <div class="icon-button">&lt;</div>
+                <a class="tap-link icon-button" href="{app_href("Home")}" target="_self">&lt;</a>
                 <div></div>
                 <div style="display:flex;gap:10px;">
-                    <div class="icon-button">H</div>
-                    <div class="icon-button">S</div>
+                    <a class="tap-link icon-button" href="{app_href("Recipe", future="save_recipe")}" target="_self">H</a>
+                    <a class="tap-link icon-button" href="{app_href("Recipe", future="share_recipe")}" target="_self">S</a>
                 </div>
             </div>
             <div class="hero-food"><div class="plate"></div></div>
@@ -1288,7 +1467,7 @@ def render_recipe(plan):
                         for index, step in enumerate(plan["recipe_steps"], start=1)
                     )}
                 </div>
-                <a class="tap-link cook-button" href="{app_href("Home")}" target="_self">Cook Now</a>
+                <a class="tap-link cook-button" href="{app_href("Recipe", generate_recipe="1")}" target="_self">Cook Now</a>
             </div>
         </div>
         """
@@ -1306,7 +1485,7 @@ def render_cart(plan):
             f"""
         <div class="app-screen">
             <div class="top-row">
-                <div class="icon-button">&lt;</div>
+                <a class="tap-link icon-button" href="{app_href("Recipe")}" target="_self">&lt;</a>
                 <div></div>
                 <div class="icon-button">3</div>
             </div>
@@ -1325,13 +1504,13 @@ def render_cart(plan):
                 f'<a class="tap-link" href="{app_href("Cart", cart_action="inc", item=product.get("name", "Ingredient"))}" target="_self">+</a></div></div>'
                 for product in products
             )}
-            <div class="note-row"><span>Add a note for your shopper</span><span>&gt;</span></div>
+            <a class="tap-link note-row" href="{app_href("Cart", future="shopper_note")}" target="_self"><span>Add a note for your shopper</span><span>&gt;</span></a>
             <div class="total-box">
                 <div class="total-row"><span>Subtotal ({item_count} items)</span><span>{money(subtotal)}</span></div>
                 <div class="total-row"><span>Delivery Fee</span><span>{money(delivery)}</span></div>
                 <div class="total-row big"><span>Total</span><span>{money(total)}</span></div>
             </div>
-            <a class="tap-link order-button" href="{app_href("Home")}" target="_self">Place Order - {money(total)}</a>
+            <a class="tap-link order-button" href="{app_href("OrderSuccess", order="place")}" target="_self">Place Order - {money(total)}</a>
             <div style="text-align:center;margin-top:10px;color:var(--leaf);font-size:12px;font-weight:800;">Secure checkout</div>
         </div>
         """
@@ -1342,12 +1521,12 @@ def render_cart(plan):
 def render_scan(plan, runtime_config, business_goal):
     st.html(
         phone_frame(
-            """
+            f"""
         <div class="app-screen">
             <div class="top-row">
-                <div class="icon-button">&lt;</div>
+                <a class="tap-link icon-button" href="{app_href("Home")}" target="_self">&lt;</a>
                 <div class="brand"><span class="leaf-mark"></span><span>Freshwise</span></div>
-                <div class="icon-button">?</div>
+                <a class="tap-link icon-button" href="{app_href("Scan", future="scan_help")}" target="_self">?</a>
             </div>
             <h1 class="title">Scan Your Fridge</h1>
             <div class="muted">For the Streamlit prototype, type or paste ingredients here. This screen becomes camera capture when the PWA is built.</div>
@@ -1361,15 +1540,96 @@ def render_scan(plan, runtime_config, business_goal):
     )
 
 
+def render_ingredients(plan):
+    ingredients = current_ingredients()
+    rows = []
+    for ingredient in ingredients:
+        rows.append(
+            f"""
+            <div class="ingredient-row-card">
+                <div class="food-art {tone_for(ingredient)}"></div>
+                <div>
+                    <strong>{esc(ingredient)}</strong>
+                    <div class="confidence">Detected</div>
+                </div>
+                <a class="tap-link icon-button" href="{app_href("Ingredients", remove_ingredient=ingredient)}" target="_self">x</a>
+            </div>
+            """
+        )
+    empty = '<div class="muted">No ingredients yet. Add some below or scan your fridge.</div>' if not rows else ""
+    st.html(
+        phone_frame(
+            f"""
+        <div class="app-screen">
+            <div class="top-row">
+                <a class="tap-link icon-button" href="{app_href("Home")}" target="_self">&lt;</a>
+                <div class="brand"><span class="leaf-mark"></span><span>Freshwise</span></div>
+                <a class="tap-link icon-button" href="{app_href("Scan")}" target="_self">+</a>
+            </div>
+            <h1 class="title">Detected Ingredients</h1>
+            <div class="muted">Confirm what Freshwise found before generating a recipe.</div>
+            <div class="ingredient-list">{''.join(rows)}{empty}</div>
+            <a class="tap-link cook-button" href="{app_href("Recipe", generate_recipe="1")}" target="_self">Generate Recipe</a>
+        </div>
+        """
+        )
+    )
+
+
+def render_order_success(plan):
+    order = st.session_state.get("last_order", {})
+    total = float(order.get("subtotal", cart_subtotal(plan)[0])) + 1.99
+    item_count = int(order.get("item_count", cart_subtotal(plan)[1]))
+    st.html(
+        phone_frame(
+            f"""
+        <div class="app-screen">
+            <div class="top-row">
+                <a class="tap-link icon-button" href="{app_href("Home")}" target="_self">&lt;</a>
+                <div class="brand"><span class="leaf-mark"></span><span>Freshwise</span></div>
+                <div></div>
+            </div>
+            <div class="success-burst">✓</div>
+            <div class="success-card">
+                <h1 class="cart-title">Order placed</h1>
+                <div class="muted">Mock checkout complete for the Streamlit mobile demo.</div>
+                <div class="total-box">
+                    <div class="total-row"><span>Items</span><span>{item_count}</span></div>
+                    <div class="total-row big"><span>Total</span><span>{money(total)}</span></div>
+                </div>
+                <a class="tap-link cook-button" href="{app_href("Home")}" target="_self">Back Home</a>
+            </div>
+        </div>
+        """
+        )
+    )
+
+
 def render_scan_controls(runtime_config, business_goal):
     st.html(
         """
         <div class="action-panel">
-            <h3>Prototype Input</h3>
-            <p>Type fridge ingredients here. This is the camera-recognition handoff point for the PWA version.</p>
+            <h3>Camera / Manual Input</h3>
+            <p>On mobile, the camera field opens the device camera. Vision recognition is next; manual input remains the reliable MVP path.</p>
         </div>
         """
     )
+    fridge_photo = st.camera_input(
+        "Take a fridge photo",
+        key="fridge_photo",
+        help="On Streamlit Cloud mobile, this opens the phone camera or photo picker.",
+    )
+    if fridge_photo is not None:
+        if st.session_state.get("recognized_photo_id") != fridge_photo.file_id:
+            with st.spinner("Freshwise is recognizing ingredients with the multimodal model..."):
+                ingredients = recognize_photo_into_ingredients(runtime_config, fridge_photo.getvalue())
+            st.session_state["recognized_photo_id"] = fridge_photo.file_id
+            if ingredients:
+                st.session_state["ingredient_input"] = ", ".join(ingredients)
+                st.session_state["screen_picker"] = "Ingredients"
+                st.rerun()
+        st.info(st.session_state.get("generation_notice", "Photo captured. Confirm ingredients below."))
+
     owned_ingredients = st.text_area(
         "Ingredients",
         key="ingredient_input",
@@ -1384,35 +1644,75 @@ def render_scan_controls(runtime_config, business_goal):
 
     if demo:
         st.session_state["ingredient_input"] = SAMPLE_INGREDIENTS
-        st.session_state["last_plan"] = local_plan_from_ingredients(parse_ingredients(SAMPLE_INGREDIENTS))
-        st.session_state["screen_picker"] = "Home"
+        ingredients = parse_ingredients(SAMPLE_INGREDIENTS)
+        st.session_state["detected_ingredients"] = ingredients
+        generate_recipe_from_current_ingredients(runtime_config, business_goal)
+        st.session_state["screen_picker"] = "Ingredients"
         st.rerun()
 
     if generate:
         ingredients = parse_ingredients(owned_ingredients)
         if not ingredients:
             st.warning("Add at least one ingredient first.")
-        elif not runtime_config["ready"]:
-            st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
-            st.session_state["screen_picker"] = "Home"
-            st.info("Using local demo logic because AI secrets are not configured.")
-            st.rerun()
         else:
-            with st.spinner("Freshwise is building a meal and cart..."):
-                try:
-                    st.session_state["last_plan"] = generate_plan(
-                        runtime_config["api_key"],
-                        runtime_config["model"],
-                        owned_ingredients,
-                        business_goal,
-                    )
-                    st.session_state["screen_picker"] = "Home"
-                    st.rerun()
-                except Exception as exc:
-                    st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
-                    st.session_state["screen_picker"] = "Home"
-                    st.warning(f"AI failed, so Freshwise used local demo logic: {exc}")
-                    st.rerun()
+            st.session_state["detected_ingredients"] = ingredients
+            with st.spinner("Freshwise is building a meal and cart with the multimodal model..."):
+                generate_recipe_from_current_ingredients(runtime_config, business_goal)
+            st.session_state["screen_picker"] = "Recipe"
+            st.rerun()
+
+
+def render_home_controls():
+    col1, col2 = st.columns(2)
+    if col1.button("Scan / Input", type="primary", use_container_width=True):
+        st.session_state["screen_picker"] = "Scan"
+        st.rerun()
+    if col2.button("View Recipe", use_container_width=True):
+        st.session_state["screen_picker"] = "Recipe"
+        st.rerun()
+
+
+def render_recipe_controls(runtime_config, business_goal):
+    col1, col2 = st.columns(2)
+    if col1.button("Cook Steps", type="primary", use_container_width=True):
+        st.session_state["screen_picker"] = "Recipe"
+        st.info("Recipe steps are shown above. Timer mode is reserved for the PWA version.")
+    if col2.button("Missing Items", use_container_width=True):
+        st.session_state["screen_picker"] = "Cart"
+        st.rerun()
+
+    if st.button("Regenerate Recipe", use_container_width=True):
+        with st.spinner("Freshwise is generating a recipe with the multimodal model..."):
+            generate_recipe_from_current_ingredients(runtime_config, business_goal)
+        st.session_state["screen_picker"] = "Recipe"
+        st.rerun()
+
+
+def render_ingredients_controls(runtime_config, business_goal):
+    st.html(
+        """
+        <div class="action-panel">
+            <h3>Ingredient Editor</h3>
+            <p>Add an item manually, then regenerate the meal plan from the confirmed ingredients.</p>
+        </div>
+        """
+    )
+    new_item = st.text_input("Add ingredient", key="new_ingredient", label_visibility="collapsed", placeholder="Add ingredient")
+    col1, col2 = st.columns(2)
+    if col1.button("Add Item", use_container_width=True):
+        item = new_item.strip().title()
+        if item:
+            ingredients = current_ingredients()
+            if item not in ingredients:
+                ingredients.append(item)
+            st.session_state["detected_ingredients"] = ingredients
+            st.session_state["last_plan"] = local_plan_from_ingredients(ingredients)
+            st.rerun()
+    if col2.button("Generate Recipe", type="primary", use_container_width=True):
+        with st.spinner("Freshwise is building a meal and cart with the multimodal model..."):
+            generate_recipe_from_current_ingredients(runtime_config, business_goal)
+        st.session_state["screen_picker"] = "Recipe"
+        st.rerun()
 
 
 def render_cart_controls(plan):
@@ -1450,11 +1750,18 @@ def render_cart_controls(plan):
 
 inject_theme()
 runtime_config = read_runtime_config()
+st.session_state["runtime_config"] = runtime_config
 
 if "last_plan" not in st.session_state:
     st.session_state["last_plan"] = FALLBACK_PLAN
 if "ingredient_input" not in st.session_state:
     st.session_state["ingredient_input"] = SAMPLE_INGREDIENTS
+if "detected_ingredients" not in st.session_state:
+    st.session_state["detected_ingredients"] = list(FALLBACK_PLAN["owned_ingredients"])
+if "new_ingredient" not in st.session_state:
+    st.session_state["new_ingredient"] = ""
+if "business_goal" not in st.session_state:
+    st.session_state["business_goal"] = BUSINESS_GOALS[0]
 
 handle_query_actions()
 
@@ -1466,30 +1773,50 @@ with st.sidebar:
     else:
         st.warning(runtime_config["error"])
     business_goal = st.selectbox("Retail goal", BUSINESS_GOALS)
+st.session_state["business_goal"] = business_goal
 
 plan = normalize_plan(st.session_state["last_plan"])
 sync_cart(plan)
+nav_options = ["Home", "Ingredients", "Recipe", "Cart", "Scan"]
 screen = st.session_state.get("screen_picker", "Home")
 
 if screen == "Home":
     render_home(plan)
+elif screen == "Ingredients":
+    render_ingredients(plan)
 elif screen == "Recipe":
     render_recipe(plan)
 elif screen == "Cart":
     render_cart(plan)
+elif screen == "OrderSuccess":
+    render_order_success(plan)
 else:
     render_scan(plan, runtime_config, business_goal)
 
 if screen == "Scan":
     render_scan_controls(runtime_config, business_goal)
+elif screen == "Home":
+    render_home_controls()
+elif screen == "Recipe":
+    render_recipe_controls(runtime_config, business_goal)
+elif screen == "Ingredients":
+    render_ingredients_controls(runtime_config, business_goal)
 elif screen == "Cart":
     render_cart_controls(plan)
 
-screen = st.radio(
-    "App screen",
-    ["Home", "Recipe", "Cart", "Scan"],
-    index=["Home", "Recipe", "Cart", "Scan"].index(screen),
-    horizontal=True,
-    label_visibility="collapsed",
-    key="screen_picker",
-)
+if st.session_state.get("future_notice"):
+    st.info(st.session_state.pop("future_notice"))
+if st.session_state.get("generation_notice"):
+    st.info(st.session_state.pop("generation_notice"))
+
+if screen in nav_options:
+    selected_screen = st.radio(
+        "App screen",
+        nav_options,
+        index=nav_options.index(screen),
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if selected_screen != screen:
+        st.session_state["screen_picker"] = selected_screen
+        st.rerun()

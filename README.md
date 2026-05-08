@@ -13,15 +13,17 @@ Freshwise is currently implemented as a Streamlit app so it can be tested quickl
 - **Scan**: take a fridge photo on mobile or upload/capture an image through `st.camera_input`.
 - **Recognize**: send the photo to the configured multimodal model and write detected ingredients back into the editable ingredient text box.
 - **Edit**: manually correct, remove, or add ingredients before generating a recipe.
-- **Generate Recipe**: call the configured model to create a recipe plan, chef note, missing ingredients, recommended products, and cooking steps.
-- **Cart**: review mock grocery items, adjust quantities, and place a mock order.
+- **Generate Recipes**: call the configured model to create three recipe options, each with a chef note, missing ingredients, recommended products, and cooking steps.
+- **Choose**: select one of the three recipe options as the current meal.
+- **Cart**: review mock grocery items for the selected recipe, adjust quantities, and place a mock order.
 - **Settings**: change the retail goal and verify model connection status without cluttering the main flow.
 
 ## Features
 
 - English and Traditional Chinese UI language toggle.
 - Multimodal ingredient recognition using the same configured model family as recipe generation.
-- Local fallback recipe/demo data for presentations when the model is unavailable.
+- Initial recipe and cart views start empty until ingredients are entered and recipes are generated.
+- Local fallback recipe/demo data appears only when the user selects demo ingredients or when the model call is unavailable.
 - Mobile-friendly Streamlit layout with app-style tabs.
 - Mock retail catalog and cart totals for meal-to-cart demonstrations.
 

@@ -39,11 +39,16 @@ TEXT = {
         "use_demo": "Use Demo Ingredients",
         "detected": "Detected ingredients",
         "no_ingredients": "No ingredients yet. Take a photo or enter ingredients manually.",
+        "no_recipe": "No recipes yet. Scan or enter ingredients, then generate recipes.",
+        "no_cart": "No cart yet. Generate recipes and choose one to see missing ingredients.",
         "add_ingredient": "Add ingredient",
         "add": "Add",
         "remove": "Remove",
         "generate_recipe": "Generate Recipe",
         "regenerate": "Regenerate Recipe",
+        "recipe_options": "Recipe options",
+        "use_this_recipe": "Use this recipe",
+        "current_recipe": "Current recipe",
         "model_generating": "Calling the configured multimodal model...",
         "model_recognizing": "Recognizing ingredients with the configured multimodal model...",
         "fallback_recipe": "Using local demo fallback because the model call was unavailable.",
@@ -101,11 +106,16 @@ TEXT = {
         "use_demo": "使用範例食材",
         "detected": "已辨識食材",
         "no_ingredients": "目前沒有食材。請拍照或手動輸入。",
+        "no_recipe": "目前還沒有食譜。請先拍照或輸入食材，再生成食譜。",
+        "no_cart": "目前還沒有購物車。請先生成食譜並選擇一道料理。",
         "add_ingredient": "新增食材",
         "add": "新增",
         "remove": "移除",
         "generate_recipe": "生成食譜",
         "regenerate": "重新生成食譜",
+        "recipe_options": "食譜選項",
+        "use_this_recipe": "使用這道料理",
+        "current_recipe": "目前料理",
         "model_generating": "正在呼叫設定的多模態模型...",
         "model_recognizing": "正在用設定的多模態模型辨識食材...",
         "fallback_recipe": "模型呼叫不可用，已改用本地 demo fallback。",
@@ -236,6 +246,105 @@ FALLBACK_PLAN = {
         ],
         "cart_summary": {"item_count": 3, "estimated_total": 7.27},
     },
+}
+
+FALLBACK_RECIPE_VARIANTS = {
+    "en": [
+        {
+            "meal_title": "Creamy Tomato Pasta",
+            "reasoning_summary": "Use tomatoes and spinach as the fresh base, then add cream, parmesan, basil, and pasta to complete a fast dinner.",
+            "chef_note": "I would lean into the tomatoes first, then use spinach for freshness and a creamy finish to make the dish feel complete.",
+            "missing_items": ["Heavy Cream", "Parmesan Cheese", "Fresh Basil"],
+            "recommended_products": [
+                {"name": "Heavy Cream", "reason": "Makes the sauce smooth.", "estimated_price": 2.49},
+                {"name": "Parmesan Cheese", "reason": "Adds salty depth.", "estimated_price": 2.99},
+                {"name": "Fresh Basil", "reason": "Finishes the dish fresh.", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "Boil pasta until al dente.",
+                "Simmer tomatoes with garlic and a splash of cream.",
+                "Fold in spinach, pasta, parmesan, and torn basil.",
+            ],
+        },
+        {
+            "meal_title": "Spinach Cheese Omelet",
+            "reasoning_summary": "Eggs and spinach become a fast protein-rich meal, with cheese for body and tomatoes for brightness.",
+            "chef_note": "This is the quickest path when the fridge already has eggs: keep the center soft, then use tomatoes to wake it up.",
+            "missing_items": ["Cherry Tomatoes", "Fresh Basil"],
+            "recommended_products": [
+                {"name": "Cherry Tomatoes", "reason": "Adds a juicy side.", "estimated_price": 3.49},
+                {"name": "Fresh Basil", "reason": "Brightens the eggs.", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "Whisk eggs with a pinch of salt.",
+                "Wilt spinach in a warm pan.",
+                "Add eggs and cheese, fold gently, and serve with tomatoes and basil.",
+            ],
+        },
+        {
+            "meal_title": "Tomato Spinach Grain Bowl",
+            "reasoning_summary": "Turn the ingredients into a flexible bowl by adding a grain base and a bright dressing.",
+            "chef_note": "I would make this when you want something lighter than pasta but still complete enough to feel like dinner.",
+            "missing_items": ["Pasta", "Fresh Basil"],
+            "recommended_products": [
+                {"name": "Pasta", "reason": "Works as the hearty base.", "estimated_price": 1.99},
+                {"name": "Fresh Basil", "reason": "Adds a fresh finish.", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "Cook the grain or pasta base.",
+                "Warm tomatoes until they soften and release juice.",
+                "Toss with spinach, cheese, basil, and a drizzle of oil.",
+            ],
+        },
+    ],
+    "zh": [
+        {
+            "meal_title": "奶油番茄義大利麵",
+            "reasoning_summary": "用番茄與菠菜當新鮮基底，再補上鮮奶油、帕瑪森起司、羅勒與義大利麵，就能完成快速晚餐。",
+            "chef_note": "我會先把番茄的酸甜煮出來，再用菠菜補清爽感，最後用奶油與起司把它收成一盤完整晚餐。",
+            "missing_items": ["鮮奶油", "帕瑪森起司", "新鮮羅勒"],
+            "recommended_products": [
+                {"name": "鮮奶油", "reason": "讓醬汁更滑順。", "estimated_price": 2.49},
+                {"name": "帕瑪森起司", "reason": "增加鹹香層次。", "estimated_price": 2.99},
+                {"name": "新鮮羅勒", "reason": "收尾更清爽。", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "將義大利麵煮到彈牙。",
+                "把番茄與蒜炒軟，加入少量鮮奶油。",
+                "拌入菠菜、義大利麵、起司與羅勒。",
+            ],
+        },
+        {
+            "meal_title": "菠菜起司歐姆蛋",
+            "reasoning_summary": "雞蛋、菠菜與起司可以快速變成高蛋白餐點，再用番茄增加清爽酸甜。",
+            "chef_note": "如果冰箱裡已經有蛋，我會走最快的路線：蛋保持柔嫩，番茄負責把味道點亮。",
+            "missing_items": ["小番茄", "新鮮羅勒"],
+            "recommended_products": [
+                {"name": "小番茄", "reason": "做成多汁配菜。", "estimated_price": 3.49},
+                {"name": "新鮮羅勒", "reason": "讓蛋香更清新。", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "雞蛋加鹽打散。",
+                "菠菜下鍋炒軟。",
+                "倒入蛋液與起司，摺成歐姆蛋，搭配番茄與羅勒。",
+            ],
+        },
+        {
+            "meal_title": "番茄菠菜溫沙拉碗",
+            "reasoning_summary": "把現有食材做成清爽碗餐，補上一個主食基底與香草就能更完整。",
+            "chef_note": "想吃得比義大利麵輕一點時，我會選這道；它簡單，但仍然像一份完整晚餐。",
+            "missing_items": ["義大利麵", "新鮮羅勒"],
+            "recommended_products": [
+                {"name": "義大利麵", "reason": "作為飽足主食。", "estimated_price": 1.99},
+                {"name": "新鮮羅勒", "reason": "增加清香。", "estimated_price": 1.79},
+            ],
+            "recipe_steps": [
+                "煮好主食基底。",
+                "番茄加熱到釋出汁水。",
+                "拌入菠菜、起司、羅勒與少量橄欖油。",
+            ],
+        },
+    ],
 }
 
 st.set_page_config(
@@ -406,7 +515,7 @@ def generate_plan(api_key, model, ingredients, business_goal):
     output_language = "Traditional Chinese" if lang() == "zh" else "English"
     system_prompt = f"""
 You are Freshwise, a multimodal meal-to-cart engine for a grocery app.
-Create one practical dinner recommendation from the user's ingredients and the retailer promotion catalog.
+Create exactly three practical dinner recommendations from the user's ingredients and the retailer promotion catalog.
 Recommend missing items only when useful for the recipe.
 Output language: {output_language}.
 Business goal: {business_goal}
@@ -416,16 +525,20 @@ Promotion catalog:
 
 Return only valid JSON with this shape:
 {{
-  "meal_title": "string",
-  "reasoning_summary": "string",
-  "chef_note": "string",
-  "owned_ingredients": ["string"],
-  "missing_items": ["string"],
-  "recommended_products": [
-    {{"name": "string", "reason": "string", "estimated_price": 0}}
-  ],
-  "recipe_steps": ["string"],
-  "cart_summary": {{"item_count": 0, "estimated_total": 0}}
+  "recipes": [
+    {{
+      "meal_title": "string",
+      "reasoning_summary": "string",
+      "chef_note": "string",
+      "owned_ingredients": ["string"],
+      "missing_items": ["string"],
+      "recommended_products": [
+        {{"name": "string", "reason": "string", "estimated_price": 0}}
+      ],
+      "recipe_steps": ["string"],
+      "cart_summary": {{"item_count": 0, "estimated_total": 0}}
+    }}
+  ]
 }}
 """
     client = OpenAI(api_key=api_key, base_url=DEFAULT_BASE_URL)
@@ -438,8 +551,10 @@ Return only valid JSON with this shape:
         response_format={"type": "json_object"},
     )
     data = extract_json(response.choices[0].message.content)
-    if not isinstance(data.get("recommended_products"), list):
-        raise ValueError("Model JSON missing recommended_products.")
+    if isinstance(data.get("recipes"), list):
+        data["recipes"] = data["recipes"][:3]
+    elif not isinstance(data.get("recommended_products"), list):
+        raise ValueError("Model JSON missing recipes.")
     return data
 
 
@@ -476,20 +591,42 @@ def recognize_ingredients(api_key, model, image_bytes):
 
 
 def fallback_plan(ingredients):
-    plan = dict(FALLBACK_PLAN[lang()])
-    plan["owned_ingredients"] = ingredients or FALLBACK_PLAN[lang()]["owned_ingredients"]
-    return plan
+    owned = ingredients or FALLBACK_PLAN[lang()]["owned_ingredients"]
+    recipes = []
+    for variant in FALLBACK_RECIPE_VARIANTS[lang()]:
+        recipe = {**FALLBACK_PLAN[lang()], **variant}
+        recipe["owned_ingredients"] = owned
+        recipes.append(recipe)
+    return {"recipes": recipes}
+
+
+def recipe_options(plan):
+    if not plan:
+        return []
+    raw = plan
+    recipes = raw.get("recipes") if isinstance(raw, dict) else None
+    if not isinstance(recipes, list) or not recipes:
+        recipes = [raw]
+    normalized = []
+    base = FALLBACK_PLAN[lang()]
+    for recipe in recipes[:3]:
+        merged = {**base, **(recipe or {})}
+        merged["owned_ingredients"] = merged.get("owned_ingredients") or base["owned_ingredients"]
+        merged["missing_items"] = merged.get("missing_items") or base["missing_items"]
+        merged["recommended_products"] = merged.get("recommended_products") or base["recommended_products"]
+        merged["recipe_steps"] = merged.get("recipe_steps") or base["recipe_steps"]
+        merged["chef_note"] = merged.get("chef_note") or merged.get("reasoning_summary") or base.get("chef_note", "")
+        normalized.append(merged)
+    return normalized
 
 
 def normalize_plan(plan):
-    base = FALLBACK_PLAN[lang()]
-    merged = {**base, **(plan or {})}
-    merged["owned_ingredients"] = merged.get("owned_ingredients") or base["owned_ingredients"]
-    merged["missing_items"] = merged.get("missing_items") or base["missing_items"]
-    merged["recommended_products"] = merged.get("recommended_products") or base["recommended_products"]
-    merged["recipe_steps"] = merged.get("recipe_steps") or base["recipe_steps"]
-    merged["chef_note"] = merged.get("chef_note") or merged.get("reasoning_summary") or base.get("chef_note", "")
-    return merged
+    recipes = recipe_options(plan)
+    if not recipes:
+        return {}
+    selected = min(st.session_state.get("selected_recipe_index", 0), len(recipes) - 1)
+    st.session_state["selected_recipe_index"] = selected
+    return recipes[selected]
 
 
 def sync_cart(plan):
@@ -519,6 +656,7 @@ def set_demo():
     st.session_state["ingredients"] = ingredients
     st.session_state["manual_text"] = DEMO_INGREDIENTS[lang()]
     st.session_state["plan"] = fallback_plan(ingredients)
+    st.session_state["selected_recipe_index"] = 0
     st.session_state["status"] = tr("local_demo")
 
 
@@ -541,6 +679,7 @@ def generate_recipe(runtime_config, business_goal):
                     ingredients,
                     business_goal,
                 )
+                st.session_state["selected_recipe_index"] = 0
             st.session_state["status"] = tr("generated_by_model")
             return
         except Exception as exc:
@@ -548,6 +687,7 @@ def generate_recipe(runtime_config, business_goal):
     else:
         st.warning(runtime_config["error"])
     st.session_state["plan"] = fallback_plan(ingredients)
+    st.session_state["selected_recipe_index"] = 0
     st.session_state["status"] = tr("fallback_recipe")
 
 
@@ -574,6 +714,8 @@ def render_scan(runtime_config):
                     ingredients = recognize_ingredients(runtime_config["api_key"], runtime_config["model"], photo.getvalue())
                 st.session_state["ingredients"] = ingredients
                 st.session_state["manual_text"] = ingredients_to_text(ingredients)
+                st.session_state["plan"] = None
+                st.session_state["selected_recipe_index"] = 0
                 st.session_state["status"] = tr("recognized_by_model")
                 st.success(tr("photo_recognized_review"))
             except Exception as exc:
@@ -590,6 +732,8 @@ def render_scan(runtime_config):
         ingredients = parse_ingredients(manual)
         if ingredients:
             st.session_state["ingredients"] = ingredients
+            st.session_state["plan"] = None
+            st.session_state["selected_recipe_index"] = 0
             st.success(tr("ingredients_updated"))
         else:
             st.warning(tr("need_ingredients"))
@@ -607,6 +751,8 @@ def render_ingredients():
         if col2.button(tr("remove"), key=f"remove_{index}", use_container_width=True):
             ingredients.pop(index)
             st.session_state["ingredients"] = ingredients
+            st.session_state["plan"] = None
+            st.session_state["selected_recipe_index"] = 0
             st.rerun()
 
     new_item = st.text_input(tr("add_ingredient"), key="new_ingredient")
@@ -615,6 +761,8 @@ def render_ingredients():
         if value:
             ingredients.append(value)
             st.session_state["ingredients"] = ingredients
+            st.session_state["plan"] = None
+            st.session_state["selected_recipe_index"] = 0
             st.rerun()
 
 
@@ -622,6 +770,22 @@ def render_recipe(runtime_config, business_goal):
     st.subheader(tr("recipe"))
     if st.button(tr("generate_recipe"), type="primary", use_container_width=True):
         generate_recipe(runtime_config, business_goal)
+
+    recipes = recipe_options(st.session_state.get("plan"))
+    if not recipes:
+        st.info(tr("no_recipe"))
+        return
+
+    st.markdown(f"#### {tr('recipe_options')}")
+    for index, recipe in enumerate(recipes):
+        selected = index == st.session_state.get("selected_recipe_index", 0)
+        st.markdown(f"**{index + 1}. {recipe.get('meal_title', '')}**")
+        st.caption(recipe.get("reasoning_summary", ""))
+        label = tr("current_recipe") if selected else tr("use_this_recipe")
+        if st.button(label, key=f"select_recipe_{index}", use_container_width=True, disabled=selected):
+            st.session_state["selected_recipe_index"] = index
+            sync_cart(recipe)
+            st.rerun()
 
     plan = normalize_plan(st.session_state.get("plan"))
     st.markdown(f"### {plan.get('meal_title', '')}")
@@ -649,6 +813,9 @@ def render_recipe(runtime_config, business_goal):
 def render_cart():
     st.subheader(tr("cart"))
     plan = normalize_plan(st.session_state.get("plan"))
+    if not plan:
+        st.info(tr("no_cart"))
+        return
     sync_cart(plan)
     products = plan.get("recommended_products", [])
     if not products:
@@ -697,13 +864,15 @@ def main():
     if "ingredients" not in st.session_state:
         st.session_state["ingredients"] = []
     if "plan" not in st.session_state:
-        st.session_state["plan"] = FALLBACK_PLAN[lang()]
+        st.session_state["plan"] = None
     if "cart_quantities" not in st.session_state:
         st.session_state["cart_quantities"] = {}
     if "manual_text" not in st.session_state:
-        st.session_state["manual_text"] = DEMO_INGREDIENTS[lang()]
+        st.session_state["manual_text"] = ""
     if "business_goal" not in st.session_state:
         st.session_state["business_goal"] = tr("goal_options")[0]
+    if "selected_recipe_index" not in st.session_state:
+        st.session_state["selected_recipe_index"] = 0
 
     language_label = st.radio(
         tr("language"),
@@ -715,8 +884,9 @@ def main():
     selected_lang = LANGUAGE_OPTIONS[language_label]
     if selected_lang != lang():
         st.session_state["language"] = selected_lang
-        st.session_state["manual_text"] = DEMO_INGREDIENTS[selected_lang]
-        st.session_state["plan"] = FALLBACK_PLAN[selected_lang]
+        st.session_state["manual_text"] = ""
+        st.session_state["plan"] = None
+        st.session_state["selected_recipe_index"] = 0
         st.session_state["business_goal"] = TEXT[selected_lang]["goal_options"][0]
         st.rerun()
 

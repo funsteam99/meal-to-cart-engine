@@ -52,6 +52,8 @@ TEXT = {
         "recognized_by_model": "Recognized by the configured model.",
         "meal": "Meal",
         "why": "Why this works",
+        "chef_note": "Chef's inner monologue",
+        "chef_note_hint": "A short, user-facing note about why this recipe direction makes sense.",
         "uses": "Uses",
         "missing": "Missing",
         "steps": "Steps",
@@ -66,6 +68,9 @@ TEXT = {
         "order_success": "Mock order placed",
         "need_ingredients": "Add at least one ingredient first.",
         "all_set": "All set",
+        "photo_recognized_review": "Photo recognized. Please review the ingredients below.",
+        "ingredients_updated": "Ingredients updated.",
+        "recognized_results": "Recognized results",
         "local_demo": "Local demo",
     },
     "zh": {
@@ -109,6 +114,8 @@ TEXT = {
         "recognized_by_model": "已由設定模型辨識。",
         "meal": "餐點",
         "why": "推薦原因",
+        "chef_note": "大廚內心獨白",
+        "chef_note_hint": "用給使用者看的方式，說明這道料理為什麼適合目前食材。",
         "uses": "使用食材",
         "missing": "缺少食材",
         "steps": "料理步驟",
@@ -123,6 +130,9 @@ TEXT = {
         "order_success": "模擬訂單已送出",
         "need_ingredients": "請至少加入一項食材。",
         "all_set": "完成",
+        "photo_recognized_review": "照片已辨識，請確認下方食材。",
+        "ingredients_updated": "食材已更新。",
+        "recognized_results": "辨識結果",
         "local_demo": "本地範例",
     },
 }
@@ -193,6 +203,7 @@ FALLBACK_PLAN = {
     "en": {
         "meal_title": "Creamy Tomato Pasta",
         "reasoning_summary": "Use tomatoes and spinach as the fresh base, then add cream, parmesan, basil, and pasta to complete a fast dinner.",
+        "chef_note": "I would lean into the tomatoes first, then use spinach for freshness and a creamy finish to make the dish feel complete.",
         "owned_ingredients": ["Tomatoes", "Spinach", "Cheese", "Eggs"],
         "missing_items": ["Heavy Cream", "Parmesan Cheese", "Fresh Basil"],
         "recommended_products": [
@@ -210,6 +221,7 @@ FALLBACK_PLAN = {
     "zh": {
         "meal_title": "奶油番茄義大利麵",
         "reasoning_summary": "用番茄與菠菜當新鮮基底，再補上鮮奶油、帕瑪森起司、羅勒與義大利麵，就能完成快速晚餐。",
+        "chef_note": "我會先把番茄的酸甜煮出來，再用菠菜補清爽感，最後用奶油與起司把它收成一盤完整晚餐。",
         "owned_ingredients": ["番茄", "菠菜", "起司", "雞蛋"],
         "missing_items": ["鮮奶油", "帕瑪森起司", "新鮮羅勒"],
         "recommended_products": [
@@ -291,19 +303,41 @@ def css():
             background: rgba(255, 253, 247, .88);
             box-shadow: 0 10px 24px rgba(34, 68, 38, .08);
         }
-        div[data-testid="stRadio"] [role="radiogroup"] {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+        div[data-testid="stTabs"] {
+            margin-top: 16px;
         }
-        div[data-testid="stRadio"] [role="radio"] {
+        div[data-testid="stTabs"] div[role="tablist"] {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 6px;
+            padding: 6px;
             border: 1px solid rgba(22, 63, 39, .12);
-            border-radius: 999px;
-            padding: 8px 12px;
-            background: rgba(255, 253, 247, .88);
+            border-radius: 22px;
+            background: #f0f5e8;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
         }
-        div[data-testid="stRadio"] [role="radio"] > div:first-child {
+        div[data-testid="stTabs"] button[role="tab"] {
+            min-height: 44px;
+            padding: 8px 4px;
+            border-radius: 16px;
+            color: #38513a;
+            font-weight: 800;
+            border: 1px solid transparent;
+            background: transparent;
+        }
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            color: #163f27;
+            border-color: rgba(47, 123, 63, .24);
+            background: #fffdf7;
+            box-shadow: 0 8px 18px rgba(34, 68, 38, .10);
+        }
+        div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
             display: none;
+        }
+        @media (max-width: 430px) {
+            div[data-testid="stTabs"] button[role="tab"] {
+                font-size: 13px;
+            }
         }
         .stButton > button {
             border-radius: 999px;
@@ -384,6 +418,7 @@ Return only valid JSON with this shape:
 {{
   "meal_title": "string",
   "reasoning_summary": "string",
+  "chef_note": "string",
   "owned_ingredients": ["string"],
   "missing_items": ["string"],
   "recommended_products": [
@@ -453,6 +488,7 @@ def normalize_plan(plan):
     merged["missing_items"] = merged.get("missing_items") or base["missing_items"]
     merged["recommended_products"] = merged.get("recommended_products") or base["recommended_products"]
     merged["recipe_steps"] = merged.get("recipe_steps") or base["recipe_steps"]
+    merged["chef_note"] = merged.get("chef_note") or merged.get("reasoning_summary") or base.get("chef_note", "")
     return merged
 
 
@@ -481,8 +517,14 @@ def cart_totals(plan):
 def set_demo():
     ingredients = parse_ingredients(DEMO_INGREDIENTS[lang()])
     st.session_state["ingredients"] = ingredients
+    st.session_state["manual_text"] = DEMO_INGREDIENTS[lang()]
     st.session_state["plan"] = fallback_plan(ingredients)
     st.session_state["status"] = tr("local_demo")
+
+
+def ingredients_to_text(ingredients):
+    separator = ", " if lang() == "en" else "、"
+    return separator.join(ingredients)
 
 
 def generate_recipe(runtime_config, business_goal):
@@ -531,29 +573,27 @@ def render_scan(runtime_config):
                 with st.spinner(tr("model_recognizing")):
                     ingredients = recognize_ingredients(runtime_config["api_key"], runtime_config["model"], photo.getvalue())
                 st.session_state["ingredients"] = ingredients
+                st.session_state["manual_text"] = ingredients_to_text(ingredients)
                 st.session_state["status"] = tr("recognized_by_model")
-                st.success(tr("all_set"))
+                st.success(tr("photo_recognized_review"))
             except Exception as exc:
                 st.warning(f"{tr('fallback_photo')} ({exc})")
 
     st.markdown("---")
     manual = st.text_area(
         tr("manual_input"),
-        value=st.session_state.get("manual_text", DEMO_INGREDIENTS[lang()]),
         placeholder=tr("manual_placeholder"),
+        key="manual_text",
     )
-    st.session_state["manual_text"] = manual
     col1, col2 = st.columns(2)
     if col1.button(tr("use_manual"), use_container_width=True):
         ingredients = parse_ingredients(manual)
         if ingredients:
             st.session_state["ingredients"] = ingredients
-            st.success(tr("all_set"))
+            st.success(tr("ingredients_updated"))
         else:
             st.warning(tr("need_ingredients"))
-    if col2.button(tr("use_demo"), use_container_width=True):
-        set_demo()
-        st.success(tr("all_set"))
+    col2.button(tr("use_demo"), use_container_width=True, on_click=set_demo)
 
 
 def render_ingredients():
@@ -586,7 +626,9 @@ def render_recipe(runtime_config, business_goal):
     plan = normalize_plan(st.session_state.get("plan"))
     st.markdown(f"### {plan.get('meal_title', '')}")
     st.caption(st.session_state.get("status", ""))
-    st.write(plan.get("reasoning_summary", ""))
+    st.markdown(f"#### {tr('chef_note')}")
+    st.caption(tr("chef_note_hint"))
+    st.write(plan.get("chef_note") or plan.get("reasoning_summary", ""))
 
     col1, col2 = st.columns(2)
     col1.metric(tr("ingredients"), len(plan.get("owned_ingredients", [])))
@@ -658,6 +700,10 @@ def main():
         st.session_state["plan"] = FALLBACK_PLAN[lang()]
     if "cart_quantities" not in st.session_state:
         st.session_state["cart_quantities"] = {}
+    if "manual_text" not in st.session_state:
+        st.session_state["manual_text"] = DEMO_INGREDIENTS[lang()]
+    if "business_goal" not in st.session_state:
+        st.session_state["business_goal"] = tr("goal_options")[0]
 
     language_label = st.radio(
         tr("language"),
@@ -671,31 +717,41 @@ def main():
         st.session_state["language"] = selected_lang
         st.session_state["manual_text"] = DEMO_INGREDIENTS[selected_lang]
         st.session_state["plan"] = FALLBACK_PLAN[selected_lang]
+        st.session_state["business_goal"] = TEXT[selected_lang]["goal_options"][0]
         st.rerun()
 
     render_header()
     runtime_config = read_runtime_config()
-    business_goal = st.selectbox(tr("goal"), tr("goal_options"))
-    if runtime_config["ready"]:
-        st.success(f"{tr('model_ready')}: {runtime_config['model']}")
-    else:
-        st.warning(runtime_config["error"])
 
-    section_labels = [tr("scan"), tr("ingredients"), tr("recipe"), tr("cart")]
-    section_keys = ["scan", "ingredients", "recipe", "cart"]
-    selected_label = st.radio("Section", section_labels, horizontal=True, label_visibility="collapsed")
-    section = section_keys[section_labels.index(selected_label)]
+    scan_tab, ingredients_tab, recipe_tab, cart_tab, settings_tab = st.tabs(
+        [tr("scan"), tr("ingredients"), tr("recipe"), tr("cart"), tr("settings")]
+    )
 
-    st.html('<div class="card">')
-    if section == "scan":
+    with scan_tab:
+        st.html('<div class="card">')
         render_scan(runtime_config)
-    elif section == "ingredients":
+        st.html("</div>")
+    with ingredients_tab:
+        st.html('<div class="card">')
         render_ingredients()
-    elif section == "recipe":
-        render_recipe(runtime_config, business_goal)
-    else:
+        st.html("</div>")
+    with recipe_tab:
+        st.html('<div class="card">')
+        render_recipe(runtime_config, st.session_state.get("business_goal", tr("goal_options")[0]))
+        st.html("</div>")
+    with cart_tab:
+        st.html('<div class="card">')
         render_cart()
-    st.html("</div>")
+        st.html("</div>")
+    with settings_tab:
+        st.html('<div class="card">')
+        st.subheader(tr("settings"))
+        st.selectbox(tr("goal"), tr("goal_options"), key="business_goal")
+        if runtime_config["ready"]:
+            st.success(f"{tr('model_ready')}: {runtime_config['model']}")
+        else:
+            st.warning(runtime_config["error"])
+        st.html("</div>")
 
 
 main()

@@ -6,6 +6,10 @@ import streamlit as st
 from openai import OpenAI
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GEMINI_API_ENABLE_URL = (
+    "https://console.developers.google.com/apis/api/"
+    "generativelanguage.googleapis.com/overview"
+)
 MODEL_SECRET_KEYS = ("model", "default_model")
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
@@ -412,6 +416,29 @@ def css():
             background: rgba(255, 253, 247, .88);
             box-shadow: 0 10px 24px rgba(34, 68, 38, .08);
         }
+        .recipe-option {
+            margin: 10px 0;
+            padding: 12px 14px;
+            border: 1px solid rgba(22, 63, 39, .12);
+            border-radius: 18px;
+            background: rgba(255, 253, 247, .82);
+        }
+        .recipe-option.selected {
+            border: 2px solid #2f7b3f;
+            background: #eef8e6;
+            box-shadow: 0 12px 24px rgba(47, 123, 63, .16);
+        }
+        .recipe-option-title {
+            margin: 0 0 4px;
+            color: #123624;
+            font-weight: 900;
+        }
+        .recipe-option-copy {
+            margin: 0;
+            color: #5f715d;
+            font-size: 14px;
+            line-height: 1.45;
+        }
         div[data-testid="stTabs"] {
             margin-top: 16px;
         }
@@ -665,6 +692,21 @@ def ingredients_to_text(ingredients):
     return separator.join(ingredients)
 
 
+def format_model_error(exc):
+    detail = str(exc)
+    if "SERVICE_DISABLED" in detail or "Gemini API has not been used" in detail:
+        return (
+            "Gemini API is disabled for this Google Cloud project. Enable it here: "
+            f"{GEMINI_API_ENABLE_URL}. If you just enabled it, wait a few minutes and retry."
+        )
+    if "PERMISSION_DENIED" in detail or "Error code: 403" in detail:
+        return (
+            "Gemini returned 403 PERMISSION_DENIED. Check that the API key belongs to a "
+            "project with Gemini API enabled and that the key is allowed to call it."
+        )
+    return detail
+
+
 def generate_recipe(runtime_config, business_goal):
     ingredients = st.session_state.get("ingredients", [])
     if not ingredients:
@@ -683,7 +725,7 @@ def generate_recipe(runtime_config, business_goal):
             st.session_state["status"] = tr("generated_by_model")
             return
         except Exception as exc:
-            st.warning(f"{tr('fallback_recipe')} ({exc})")
+            st.warning(f"{tr('fallback_recipe')} ({format_model_error(exc)})")
     else:
         st.warning(runtime_config["error"])
     st.session_state["plan"] = fallback_plan(ingredients)
@@ -719,7 +761,7 @@ def render_scan(runtime_config):
                 st.session_state["status"] = tr("recognized_by_model")
                 st.success(tr("photo_recognized_review"))
             except Exception as exc:
-                st.warning(f"{tr('fallback_photo')} ({exc})")
+                st.warning(f"{tr('fallback_photo')} ({format_model_error(exc)})")
 
     st.markdown("---")
     manual = st.text_area(
@@ -779,8 +821,15 @@ def render_recipe(runtime_config, business_goal):
     st.markdown(f"#### {tr('recipe_options')}")
     for index, recipe in enumerate(recipes):
         selected = index == st.session_state.get("selected_recipe_index", 0)
-        st.markdown(f"**{index + 1}. {recipe.get('meal_title', '')}**")
-        st.caption(recipe.get("reasoning_summary", ""))
+        selected_class = " selected" if selected else ""
+        st.html(
+            f"""
+            <div class="recipe-option{selected_class}">
+                <p class="recipe-option-title">{index + 1}. {recipe.get("meal_title", "")}</p>
+                <p class="recipe-option-copy">{recipe.get("reasoning_summary", "")}</p>
+            </div>
+            """
+        )
         label = tr("current_recipe") if selected else tr("use_this_recipe")
         if st.button(label, key=f"select_recipe_{index}", use_container_width=True, disabled=selected):
             st.session_state["selected_recipe_index"] = index

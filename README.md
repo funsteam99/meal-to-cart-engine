@@ -33,12 +33,18 @@ Set these in Streamlit Community Cloud:
 
 ```toml
 api_key = "YOUR_GOOGLE_API_KEY"
-default_model = "models/gemma-4-31b-it"
+default_model = "gemini-2.5-flash"
 ```
 
 `model` is also supported and takes priority over `default_model`.
 
 For local development, put the same values in `.streamlit/secrets.toml`. The `.streamlit/` directory is intentionally ignored by git, so API keys should not be committed.
+
+If recipe generation fails with `403 SERVICE_DISABLED`, enable the Gemini API for the Google Cloud project behind that API key:
+
+https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview
+
+After enabling it, wait a few minutes for Google Cloud propagation and retry.
 
 ## Local Run
 
@@ -52,3 +58,7 @@ Then open the local URL in a browser. For mobile camera testing, deploy to Strea
 ## Demo Scope
 
 This is a functional prototype. It does not connect to a real retailer API, payment system, inventory feed, or checkout cart yet. Those screens and data structures are kept intentionally mockable so the app can evolve toward a production/PWA version later.
+
+## Business Model
+
+See [docs/business-model.md](docs/business-model.md) for a Chinese visual revenue strategy covering PoC fees, SaaS tiers, AI usage fees, and cart/GMV commission.

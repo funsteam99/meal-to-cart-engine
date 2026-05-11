@@ -416,8 +416,15 @@ def css():
         .stApp h6 {
             color: var(--fw-ink-strong);
         }
-        header, [data-testid="stToolbar"], [data-testid="stDecoration"] {
-            display: none;
+        header[data-testid="stHeader"],
+        .stAppHeader,
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            pointer-events: none !important;
         }
         .block-container {
             max-width: 560px;

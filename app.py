@@ -1083,7 +1083,7 @@ def render_settings(runtime_config):
 
     st.selectbox(tr("goal"), tr("goal_options"), key="business_goal")
     if runtime_config["ready"]:
-        st.success(f"{tr('model_ready')}: {runtime_config['model']}")
+        st.success(tr("model_ready"))
     else:
         st.warning(runtime_config["error"])
 

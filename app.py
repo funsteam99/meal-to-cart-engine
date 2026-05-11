@@ -421,7 +421,7 @@ def css():
         }
         .block-container {
             max-width: 560px;
-            padding: 74px 14px 34px;
+            padding: 14px 14px 34px;
         }
         [role="radiogroup"] {
             display: inline-flex;
@@ -1057,6 +1057,30 @@ def render_cart():
         st.success(tr("order_success"))
 
 
+def render_settings(runtime_config):
+    st.subheader(tr("settings"))
+    language_label = st.radio(
+        tr("language"),
+        list(LANGUAGE_OPTIONS.keys()),
+        index=list(LANGUAGE_OPTIONS.values()).index(lang()),
+        horizontal=True,
+    )
+    selected_lang = LANGUAGE_OPTIONS[language_label]
+    if selected_lang != lang():
+        st.session_state["language"] = selected_lang
+        st.session_state["manual_text"] = ""
+        st.session_state["plan"] = None
+        st.session_state["selected_recipe_index"] = 0
+        st.session_state["business_goal"] = TEXT[selected_lang]["goal_options"][0]
+        st.rerun()
+
+    st.selectbox(tr("goal"), tr("goal_options"), key="business_goal")
+    if runtime_config["ready"]:
+        st.success(f"{tr('model_ready')}: {runtime_config['model']}")
+    else:
+        st.warning(runtime_config["error"])
+
+
 def main():
     css()
     if "language" not in st.session_state:
@@ -1073,22 +1097,6 @@ def main():
         st.session_state["business_goal"] = tr("goal_options")[0]
     if "selected_recipe_index" not in st.session_state:
         st.session_state["selected_recipe_index"] = 0
-
-    language_label = st.radio(
-        tr("language"),
-        list(LANGUAGE_OPTIONS.keys()),
-        index=list(LANGUAGE_OPTIONS.values()).index(lang()),
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-    selected_lang = LANGUAGE_OPTIONS[language_label]
-    if selected_lang != lang():
-        st.session_state["language"] = selected_lang
-        st.session_state["manual_text"] = ""
-        st.session_state["plan"] = None
-        st.session_state["selected_recipe_index"] = 0
-        st.session_state["business_goal"] = TEXT[selected_lang]["goal_options"][0]
-        st.rerun()
 
     render_header()
     runtime_config = read_runtime_config()
@@ -1115,12 +1123,7 @@ def main():
         st.html("</div>")
     with settings_tab:
         st.html('<div class="card">')
-        st.subheader(tr("settings"))
-        st.selectbox(tr("goal"), tr("goal_options"), key="business_goal")
-        if runtime_config["ready"]:
-            st.success(f"{tr('model_ready')}: {runtime_config['model']}")
-        else:
-            st.warning(runtime_config["error"])
+        render_settings(runtime_config)
         st.html("</div>")
 
 

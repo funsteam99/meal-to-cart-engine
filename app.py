@@ -1,4 +1,5 @@
 import base64
+import html
 import json
 import re
 
@@ -491,6 +492,37 @@ def css():
             font-size: 14px;
             line-height: 1.45;
         }
+        .ingredient-strip {
+            margin: 0 0 14px;
+            padding: 12px;
+            border: 1px solid var(--fw-border);
+            border-radius: 18px;
+            background: rgba(255, 253, 247, .78);
+        }
+        .ingredient-strip-title {
+            margin: 0 0 8px;
+            color: var(--fw-muted);
+            font-size: 13px;
+            font-weight: 800;
+        }
+        .ingredient-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+        .ingredient-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 5px 10px;
+            border: 1px solid rgba(31, 111, 56, .24);
+            border-radius: 999px;
+            background: #eaf5df;
+            color: var(--fw-ink-strong);
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
         div[data-testid="stTabs"] {
             margin-top: 16px;
         }
@@ -534,6 +566,9 @@ def css():
             color: var(--fw-ink-strong);
             border-color: rgba(31, 111, 56, .28);
             background: var(--fw-surface);
+        }
+        .stButton > button * {
+            color: inherit;
         }
         .stButton > button[kind="primary"],
         .stButton > button[data-testid="baseButton-primary"] {
@@ -781,6 +816,25 @@ def ingredients_to_text(ingredients):
     return separator.join(ingredients)
 
 
+def render_selected_ingredients():
+    ingredients = st.session_state.get("ingredients", [])
+    if not ingredients:
+        st.info(tr("no_ingredients"))
+        return
+    chips = "".join(
+        f'<span class="ingredient-chip">{html.escape(str(ingredient))}</span>'
+        for ingredient in ingredients
+    )
+    st.html(
+        f"""
+        <div class="ingredient-strip">
+            <p class="ingredient-strip-title">{html.escape(tr("ingredients"))}</p>
+            <div class="ingredient-chip-row">{chips}</div>
+        </div>
+        """
+    )
+
+
 def format_model_error(exc):
     detail = str(exc)
     if "SERVICE_DISABLED" in detail or "Gemini API has not been used" in detail:
@@ -906,6 +960,7 @@ def render_ingredients():
 
 def render_recipe(runtime_config, business_goal):
     st.subheader(tr("recipe"))
+    render_selected_ingredients()
     if st.button(tr("generate_recipe"), type="primary", use_container_width=True):
         generate_recipe(runtime_config, business_goal)
 

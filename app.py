@@ -373,21 +373,65 @@ def money(value):
     return f"${float(value or 0):.2f}"
 
 
+THEME_COLORS = {
+    "ink": "#123624",
+    "ink_strong": "#0b2418",
+    "muted": "#40573d",
+    "subtle": "#586b51",
+    "surface": "#fffdf7",
+    "surface_strong": "#fbf8ee",
+    "surface_soft": "#eef8e6",
+    "primary": "#1f6f38",
+    "primary_dark": "#164f2a",
+    "control": "#e6f0dc",
+    "disabled": "#f7f3e8",
+    "success": "#dff2d8",
+}
+
+
+def hex_to_rgb(hex_color):
+    value = hex_color.strip().lstrip("#")
+    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
+
+
+def relative_luminance(hex_color):
+    channels = []
+    for channel in hex_to_rgb(hex_color):
+        normalized = channel / 255
+        channels.append(normalized / 12.92 if normalized <= 0.04045 else ((normalized + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def contrast_ratio(color_a, color_b):
+    lighter, darker = sorted((relative_luminance(color_a), relative_luminance(color_b)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def readable_text_for(background):
+    light = THEME_COLORS["surface"]
+    dark = THEME_COLORS["ink_strong"]
+    return light if contrast_ratio(background, light) >= contrast_ratio(background, dark) else dark
+
+
+def theme_css_variables():
+    color_vars = [f"--fw-{key.replace('_', '-')}: {value};" for key, value in THEME_COLORS.items()]
+    generated_vars = [
+        f"--fw-on-primary: {readable_text_for(THEME_COLORS['primary'])};",
+        f"--fw-on-primary-dark: {readable_text_for(THEME_COLORS['primary_dark'])};",
+        f"--fw-on-control: {readable_text_for(THEME_COLORS['control'])};",
+        f"--fw-on-disabled: {readable_text_for(THEME_COLORS['disabled'])};",
+        f"--fw-on-success: {readable_text_for(THEME_COLORS['success'])};",
+        "--fw-border: rgba(22, 63, 39, .18);",
+    ]
+    return "\n            ".join(color_vars + generated_vars)
+
+
 def css():
     st.html(
         """
         <style>
         :root {
-            --fw-ink: #123624;
-            --fw-ink-strong: #0b2418;
-            --fw-muted: #40573d;
-            --fw-subtle: #586b51;
-            --fw-surface: #fffdf7;
-            --fw-surface-strong: #fbf8ee;
-            --fw-surface-soft: #eef8e6;
-            --fw-border: rgba(22, 63, 39, .18);
-            --fw-primary: #1f6f38;
-            --fw-primary-dark: #164f2a;
+            {theme_vars}
         }
         .stApp {
             background:
@@ -437,7 +481,8 @@ def css():
             margin-bottom: 10px;
             border: 1px solid var(--fw-border);
             border-radius: 999px;
-            background: #e6f0dc;
+            background: var(--fw-control);
+            color: var(--fw-on-control);
         }
         [role="radiogroup"] label {
             min-height: 34px;
@@ -540,7 +585,7 @@ def css():
             padding: 6px;
             border: 1px solid var(--fw-border);
             border-radius: 22px;
-            background: #e6f0dc;
+            background: var(--fw-control);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
         }
         div[data-testid="stTabs"] button[role="tab"] {
@@ -579,18 +624,28 @@ def css():
         }
         .stButton > button[kind="primary"],
         .stButton > button[data-testid="baseButton-primary"] {
-            color: #fffdf7;
+            color: var(--fw-on-primary) !important;
             border-color: var(--fw-primary-dark);
-            background: var(--fw-primary);
+            background: var(--fw-primary) !important;
+        }
+        .stButton > button[kind="primary"] *,
+        .stButton > button[data-testid="baseButton-primary"] * {
+            color: var(--fw-on-primary) !important;
         }
         .stButton > button:disabled,
         button[data-testid="stCameraInputButton"]:disabled,
         button[data-testid="baseButton-primary"]:disabled,
         button[data-testid="baseButton-secondary"]:disabled {
-            color: var(--fw-muted);
+            color: var(--fw-on-disabled) !important;
             border-color: rgba(22, 63, 39, .22);
-            background: #f7f3e8;
+            background: var(--fw-disabled) !important;
             opacity: 1;
+        }
+        .stButton > button:disabled *,
+        button[data-testid="stCameraInputButton"]:disabled *,
+        button[data-testid="baseButton-primary"]:disabled *,
+        button[data-testid="baseButton-secondary"]:disabled * {
+            color: var(--fw-on-disabled) !important;
         }
         .stTextArea textarea,
         .stTextInput input,
@@ -614,11 +669,18 @@ def css():
             border-color: var(--fw-border);
             background: rgba(255, 253, 247, .9);
         }
+        .stAlert {
+            color: var(--fw-on-success);
+        }
+        .stAlert * {
+            color: inherit;
+        }
         a {
             color: var(--fw-primary-dark);
         }
         </style>
         """
+        .replace("{theme_vars}", theme_css_variables())
     )
 
 

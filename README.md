@@ -46,6 +46,8 @@ https://console.developers.google.com/apis/api/generativelanguage.googleapis.com
 
 After enabling it, wait a few minutes for Google Cloud propagation and retry.
 
+If recipe generation fails with `403 API_KEY_SERVICE_BLOCKED`, the API key itself is restricted. In Google Cloud Console, open the API key, then under **API restrictions** either allow **Generative Language API** (`generativelanguage.googleapis.com`) or temporarily choose **Don't restrict key** while testing.
+
 ## Local Run
 
 ```bash

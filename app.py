@@ -699,6 +699,13 @@ def format_model_error(exc):
             "Gemini API is disabled for this Google Cloud project. Enable it here: "
             f"{GEMINI_API_ENABLE_URL}. If you just enabled it, wait a few minutes and retry."
         )
+    if "API_KEY_SERVICE_BLOCKED" in detail or "Requests to this API" in detail:
+        return (
+            "This API key is blocking Gemini requests. In Google Cloud Console, open the "
+            "API key restrictions and allow Generative Language API "
+            "(generativelanguage.googleapis.com), or temporarily set API restrictions to "
+            "unrestricted while testing."
+        )
     if "PERMISSION_DENIED" in detail or "Error code: 403" in detail:
         return (
             "Gemini returned 403 PERMISSION_DENIED. Check that the API key belongs to a "

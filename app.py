@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime, timezone
 import html
 import json
 import logging
@@ -7,6 +8,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 import streamlit as st
 
@@ -18,6 +20,10 @@ GEMINI_API_ENABLE_URL = (
 MODEL_SECRET_KEYS = ("model", "default_model")
 API_KEY_ENV_KEYS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "API_KEY")
 MODEL_ENV_KEYS = ("MODEL", "DEFAULT_MODEL", "GEMINI_MODEL")
+BIGQUERY_PROJECT_ENV_KEYS = ("BIGQUERY_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT")
+BIGQUERY_DATASET_ENV_KEYS = ("BIGQUERY_DATASET", "FRESHWISE_BIGQUERY_DATASET")
+BIGQUERY_TABLE_ENV_KEYS = ("BIGQUERY_EVENTS_TABLE", "FRESHWISE_BIGQUERY_EVENTS_TABLE")
+DEFAULT_EVENTS_TABLE = "freshwise_events"
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
 
@@ -41,6 +47,7 @@ TEXT = {
         "ingredients": "Ingredients",
         "recipe": "Recipe",
         "cart": "Cart",
+        "admin": "Admin",
         "camera": "Take a fridge photo",
         "recognize_photo": "Recognize Photo",
         "photo_hint": "On mobile, this opens the camera or photo picker.",
@@ -88,6 +95,20 @@ TEXT = {
         "ingredients_updated": "Ingredients updated.",
         "recognized_results": "Recognized results",
         "local_demo": "Local demo",
+        "admin_title": "PoC dashboard",
+        "admin_disabled": "Analytics is not enabled for this environment.",
+        "admin_empty": "No analytics events yet. Run through the meal-to-cart flow, then refresh this dashboard.",
+        "admin_refresh": "Refresh dashboard",
+        "admin_window": "Last 30 days",
+        "admin_sessions": "Sessions",
+        "admin_events": "Events",
+        "admin_recipes": "Recipes generated",
+        "admin_recommendations": "Product exposures",
+        "admin_orders": "Mock orders",
+        "admin_avg_cart": "Avg mock cart",
+        "admin_top_ingredients": "Top ingredients",
+        "admin_top_products": "Top recommended products",
+        "admin_recent_events": "Recent events",
     },
     "zh": {
         "app_title": "Freshwise",
@@ -371,12 +392,191 @@ def lang():
 
 
 def tr(key, **kwargs):
-    value = TEXT[lang()][key]
+    value = TEXT.get(lang(), TEXT["en"]).get(key, TEXT["en"].get(key, key))
     return value.format(**kwargs) if kwargs else value
 
 
 def money(value):
     return f"${float(value or 0):.2f}"
+
+
+def get_secret_or_env(secret_keys, env_keys, default=""):
+    try:
+        value = next((st.secrets.get(key) for key in secret_keys if st.secrets.get(key)), None)
+    except Exception:
+        value = None
+    return value or next((os.getenv(key) for key in env_keys if os.getenv(key)), default)
+
+
+def ensure_session_id():
+    if "analytics_session_id" not in st.session_state:
+        st.session_state["analytics_session_id"] = uuid.uuid4().hex
+    return st.session_state["analytics_session_id"]
+
+
+def read_event_config():
+    dataset = get_secret_or_env(("bigquery_dataset",), BIGQUERY_DATASET_ENV_KEYS)
+    table = get_secret_or_env(("bigquery_events_table",), BIGQUERY_TABLE_ENV_KEYS, DEFAULT_EVENTS_TABLE)
+    project_id = get_secret_or_env(("bigquery_project_id",), BIGQUERY_PROJECT_ENV_KEYS)
+    return {"enabled": bool(dataset), "project_id": project_id, "dataset": dataset, "table": table}
+
+
+@st.cache_resource(show_spinner=False)
+def bigquery_event_table(project_id, dataset_id, table_id):
+    from google.cloud import bigquery
+
+    client = bigquery.Client(project=project_id or None)
+    project = project_id or client.project
+    dataset_ref = bigquery.Dataset(f"{project}.{dataset_id}")
+    dataset_ref.location = "asia-east1"
+    client.create_dataset(dataset_ref, exists_ok=True)
+
+    full_table_id = f"{project}.{dataset_id}.{table_id}"
+    schema = [
+        bigquery.SchemaField("event_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("event_timestamp", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("event_name", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("session_id", "STRING"),
+        bigquery.SchemaField("language", "STRING"),
+        bigquery.SchemaField("business_goal", "STRING"),
+        bigquery.SchemaField("ingredients", "STRING", mode="REPEATED"),
+        bigquery.SchemaField("selected_recipe_index", "INTEGER"),
+        bigquery.SchemaField("meal_title", "STRING"),
+        bigquery.SchemaField("cart_item_count", "INTEGER"),
+        bigquery.SchemaField("cart_subtotal", "FLOAT"),
+        bigquery.SchemaField("properties_json", "STRING"),
+    ]
+    table = bigquery.Table(full_table_id, schema=schema)
+    client.create_table(table, exists_ok=True)
+    return client, full_table_id
+
+
+def event_plan_snapshot(plan):
+    if not plan:
+        return {}
+    subtotal, count = cart_totals(plan) if plan.get("recommended_products") else (0, 0)
+    return {
+        "meal_title": plan.get("meal_title", ""),
+        "cart_item_count": count,
+        "cart_subtotal": subtotal,
+    }
+
+
+def track_event(event_name, properties=None, plan=None):
+    properties = properties or {}
+    event_config = read_event_config()
+    selected_plan = plan or normalize_plan(st.session_state.get("plan"))
+    row = {
+        "event_id": uuid.uuid4().hex,
+        "event_timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_name": event_name,
+        "session_id": ensure_session_id(),
+        "language": lang(),
+        "business_goal": st.session_state.get("business_goal", ""),
+        "ingredients": st.session_state.get("ingredients", []),
+        "selected_recipe_index": int(st.session_state.get("selected_recipe_index", 0)),
+        "properties_json": json.dumps(properties, ensure_ascii=False, sort_keys=True),
+        **event_plan_snapshot(selected_plan),
+    }
+    logging.info("freshwise_event %s", json.dumps(row, ensure_ascii=False, sort_keys=True))
+    if not event_config["enabled"]:
+        return
+    try:
+        client, table_id = bigquery_event_table(
+            event_config["project_id"],
+            event_config["dataset"],
+            event_config["table"],
+        )
+        errors = client.insert_rows_json(table_id, [row])
+        if errors:
+            logging.error("BigQuery event insert failed: %s", errors)
+    except Exception:
+        logging.exception("BigQuery event logging failed")
+
+
+def track_recommended_products(source):
+    plan = normalize_plan(st.session_state.get("plan"))
+    for index, product in enumerate(plan.get("recommended_products", [])):
+        track_event(
+            "product_recommended",
+            {
+                "source": source,
+                "product_index": index,
+                "product_name": product.get("name", ""),
+                "estimated_price": float(product.get("estimated_price", 0) or 0),
+            },
+            plan,
+        )
+
+
+def row_to_dict(row):
+    return {key: row[key] for key in row.keys()}
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_admin_dashboard(project_id, dataset_id, table_id):
+    client, full_table_id = bigquery_event_table(project_id, dataset_id, table_id)
+    table_ref = f"`{full_table_id}`"
+    window_filter = "event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)"
+
+    metrics_sql = f"""
+        SELECT
+          COUNT(1) AS event_count,
+          COUNT(DISTINCT session_id) AS session_count,
+          COUNTIF(event_name = 'recipe_generated') AS recipe_count,
+          COUNTIF(event_name = 'product_recommended') AS product_recommendation_count,
+          COUNTIF(event_name = 'checkout_started') AS checkout_count,
+          COUNTIF(event_name = 'order_completed') AS order_count,
+          AVG(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS avg_order_cart_subtotal
+        FROM {table_ref}
+        WHERE {window_filter}
+    """
+    top_ingredients_sql = f"""
+        SELECT ingredient, COUNT(1) AS event_count
+        FROM {table_ref}, UNNEST(ingredients) AS ingredient
+        WHERE {window_filter}
+        GROUP BY ingredient
+        ORDER BY event_count DESC, ingredient
+        LIMIT 10
+    """
+    top_products_sql = f"""
+        SELECT
+          JSON_VALUE(properties_json, '$.product_name') AS product_name,
+          COUNT(1) AS exposure_count
+        FROM {table_ref}
+        WHERE {window_filter}
+          AND event_name = 'product_recommended'
+          AND JSON_VALUE(properties_json, '$.product_name') IS NOT NULL
+        GROUP BY product_name
+        ORDER BY exposure_count DESC, product_name
+        LIMIT 10
+    """
+    recent_events_sql = f"""
+        SELECT
+          event_timestamp,
+          event_name,
+          session_id,
+          meal_title,
+          cart_item_count,
+          cart_subtotal,
+          properties_json
+        FROM {table_ref}
+        WHERE {window_filter}
+        ORDER BY event_timestamp DESC
+        LIMIT 25
+    """
+
+    metrics_rows = list(client.query(metrics_sql).result())
+    metrics = row_to_dict(metrics_rows[0]) if metrics_rows else {}
+    top_ingredients = [row_to_dict(row) for row in client.query(top_ingredients_sql).result()]
+    top_products = [row_to_dict(row) for row in client.query(top_products_sql).result()]
+    recent_events = [row_to_dict(row) for row in client.query(recent_events_sql).result()]
+    return {
+        "metrics": metrics,
+        "top_ingredients": top_ingredients,
+        "top_products": top_products,
+        "recent_events": recent_events,
+    }
 
 
 THEME_COLORS = {
@@ -477,7 +677,7 @@ def css():
             pointer-events: none !important;
         }
         .block-container {
-            max-width: 560px;
+            max-width: 840px;
             padding: 14px 14px 34px;
         }
         [role="radiogroup"] {
@@ -586,7 +786,7 @@ def css():
         }
         div[data-testid="stTabs"] div[role="tablist"] {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 6px;
             padding: 6px;
             border: 1px solid var(--fw-border);
@@ -613,6 +813,9 @@ def css():
             display: none;
         }
         @media (max-width: 430px) {
+            div[data-testid="stTabs"] div[role="tablist"] {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
             div[data-testid="stTabs"] button[role="tab"] {
                 font-size: 13px;
             }
@@ -691,15 +894,8 @@ def css():
 
 
 def read_runtime_config():
-    try:
-        api_key = st.secrets.get("api_key")
-        model = next((st.secrets.get(key) for key in MODEL_SECRET_KEYS if st.secrets.get(key)), None)
-    except Exception:
-        api_key = ""
-        model = ""
-
-    api_key = api_key or next((os.getenv(key) for key in API_KEY_ENV_KEYS if os.getenv(key)), "")
-    model = model or next((os.getenv(key) for key in MODEL_ENV_KEYS if os.getenv(key)), "")
+    api_key = get_secret_or_env(("api_key",), API_KEY_ENV_KEYS)
+    model = get_secret_or_env(MODEL_SECRET_KEYS, MODEL_ENV_KEYS)
 
     missing = []
     if not api_key:
@@ -906,6 +1102,7 @@ def set_demo():
     st.session_state["plan"] = fallback_plan(ingredients)
     st.session_state["selected_recipe_index"] = 0
     st.session_state["status"] = tr("local_demo")
+    track_event("demo_ingredients_loaded", {"ingredient_count": len(ingredients)})
 
 
 def ingredients_to_text(ingredients):
@@ -970,6 +1167,11 @@ def generate_recipe(runtime_config, business_goal):
                 )
                 st.session_state["selected_recipe_index"] = 0
             st.session_state["status"] = tr("generated_by_model")
+            track_event(
+                "recipe_generated",
+                {"source": "model", "recipe_count": len(recipe_options(st.session_state.get("plan")))},
+            )
+            track_recommended_products("model")
             return
         except Exception as exc:
             logging.exception("Recipe generation failed")
@@ -979,6 +1181,11 @@ def generate_recipe(runtime_config, business_goal):
     st.session_state["plan"] = fallback_plan(ingredients)
     st.session_state["selected_recipe_index"] = 0
     st.session_state["status"] = tr("fallback_recipe")
+    track_event(
+        "recipe_generated",
+        {"source": "fallback", "recipe_count": len(recipe_options(st.session_state.get("plan")))},
+    )
+    track_recommended_products("fallback")
 
 
 def render_header():
@@ -1007,6 +1214,7 @@ def render_scan(runtime_config):
                 st.session_state["plan"] = None
                 st.session_state["selected_recipe_index"] = 0
                 st.session_state["status"] = tr("recognized_by_model")
+                track_event("ingredient_detected", {"source": "photo", "ingredient_count": len(ingredients)})
                 st.success(tr("photo_recognized_review"))
             except Exception as exc:
                 logging.exception("Photo recognition failed")
@@ -1025,6 +1233,7 @@ def render_scan(runtime_config):
             st.session_state["ingredients"] = ingredients
             st.session_state["plan"] = None
             st.session_state["selected_recipe_index"] = 0
+            track_event("ingredients_updated", {"source": "manual", "ingredient_count": len(ingredients)})
             st.success(tr("ingredients_updated"))
         else:
             st.warning(tr("need_ingredients"))
@@ -1044,6 +1253,7 @@ def render_ingredients():
             st.session_state["ingredients"] = ingredients
             st.session_state["plan"] = None
             st.session_state["selected_recipe_index"] = 0
+            track_event("ingredient_removed", {"ingredient": ingredient, "ingredient_count": len(ingredients)})
             st.rerun()
 
     new_item = st.text_input(tr("add_ingredient"), key="new_ingredient")
@@ -1054,6 +1264,7 @@ def render_ingredients():
             st.session_state["ingredients"] = ingredients
             st.session_state["plan"] = None
             st.session_state["selected_recipe_index"] = 0
+            track_event("ingredient_added", {"ingredient": value, "ingredient_count": len(ingredients)})
             st.rerun()
 
 
@@ -1084,6 +1295,7 @@ def render_recipe(runtime_config, business_goal):
         if st.button(label, key=f"select_recipe_{index}", use_container_width=True, disabled=selected):
             st.session_state["selected_recipe_index"] = index
             sync_cart(recipe)
+            track_event("recipe_selected", {"recipe_index": index}, recipe)
             st.rerun()
 
     plan = normalize_plan(st.session_state.get("plan"))
@@ -1130,10 +1342,20 @@ def render_cart():
         qty = int(st.session_state["cart_quantities"].get(name, 1))
         if c1.button("-", key=f"minus_{name}", use_container_width=True, disabled=qty <= 0):
             st.session_state["cart_quantities"][name] = max(0, qty - 1)
+            track_event(
+                "cart_quantity_changed",
+                {"product_name": name, "quantity": st.session_state["cart_quantities"][name]},
+                plan,
+            )
             st.rerun()
         c2.metric(tr("qty"), qty)
         if c3.button("+", key=f"plus_{name}", use_container_width=True):
             st.session_state["cart_quantities"][name] = qty + 1
+            track_event(
+                "cart_quantity_changed",
+                {"product_name": name, "quantity": st.session_state["cart_quantities"][name]},
+                plan,
+            )
             st.rerun()
 
     subtotal, count = cart_totals(plan)
@@ -1147,12 +1369,16 @@ def render_cart():
     if col1.button(tr("clear_cart"), use_container_width=True):
         for name in st.session_state["cart_quantities"]:
             st.session_state["cart_quantities"][name] = 0
+        track_event("cart_cleared", {}, plan)
         st.rerun()
     if col2.button(tr("reset_qty"), use_container_width=True):
         for name in st.session_state["cart_quantities"]:
             st.session_state["cart_quantities"][name] = 1
+        track_event("cart_reset", {}, plan)
         st.rerun()
     if st.button(tr("place_order"), type="primary", use_container_width=True):
+        track_event("checkout_started", {"mock_checkout": True}, plan)
+        track_event("order_completed", {"mock_order": True}, plan)
         st.success(tr("order_success"))
 
 
@@ -1179,6 +1405,62 @@ def render_settings(runtime_config):
         st.warning(runtime_config["error"])
 
 
+def render_admin():
+    st.subheader(tr("admin_title"))
+    st.caption(tr("admin_window"))
+    event_config = read_event_config()
+    if not event_config["enabled"]:
+        st.warning(tr("admin_disabled"))
+        return
+
+    if st.button(tr("admin_refresh"), use_container_width=True):
+        fetch_admin_dashboard.clear()
+
+    try:
+        dashboard = fetch_admin_dashboard(
+            event_config["project_id"],
+            event_config["dataset"],
+            event_config["table"],
+        )
+    except Exception as exc:
+        logging.exception("Admin dashboard query failed")
+        st.warning(f"{tr('admin_disabled')} ({exc})")
+        return
+
+    metrics = dashboard.get("metrics", {})
+    event_count = int(metrics.get("event_count") or 0)
+    if not event_count:
+        st.info(tr("admin_empty"))
+        return
+
+    first_row = st.columns(3)
+    first_row[0].metric(tr("admin_sessions"), int(metrics.get("session_count") or 0))
+    first_row[1].metric(tr("admin_events"), event_count)
+    first_row[2].metric(tr("admin_recipes"), int(metrics.get("recipe_count") or 0))
+
+    second_row = st.columns(3)
+    second_row[0].metric(tr("admin_recommendations"), int(metrics.get("product_recommendation_count") or 0))
+    second_row[1].metric(tr("admin_orders"), int(metrics.get("order_count") or 0))
+    second_row[2].metric(tr("admin_avg_cart"), money(metrics.get("avg_order_cart_subtotal") or 0))
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"#### {tr('admin_top_ingredients')}")
+        if dashboard.get("top_ingredients"):
+            st.dataframe(dashboard["top_ingredients"], hide_index=True, use_container_width=True)
+        else:
+            st.caption(tr("admin_empty"))
+    with col2:
+        st.markdown(f"#### {tr('admin_top_products')}")
+        if dashboard.get("top_products"):
+            st.dataframe(dashboard["top_products"], hide_index=True, use_container_width=True)
+        else:
+            st.caption(tr("admin_empty"))
+
+    st.markdown(f"#### {tr('admin_recent_events')}")
+    st.dataframe(dashboard.get("recent_events", []), hide_index=True, use_container_width=True)
+
+
 def main():
     css()
     if "language" not in st.session_state:
@@ -1199,8 +1481,8 @@ def main():
     render_header()
     runtime_config = read_runtime_config()
 
-    scan_tab, ingredients_tab, recipe_tab, cart_tab, settings_tab = st.tabs(
-        [tr("scan"), tr("ingredients"), tr("recipe"), tr("cart"), tr("settings")]
+    scan_tab, ingredients_tab, recipe_tab, cart_tab, admin_tab, settings_tab = st.tabs(
+        [tr("scan"), tr("ingredients"), tr("recipe"), tr("cart"), tr("admin"), tr("settings")]
     )
 
     with scan_tab:
@@ -1218,6 +1500,10 @@ def main():
     with cart_tab:
         st.html('<div class="card">')
         render_cart()
+        st.html("</div>")
+    with admin_tab:
+        st.html('<div class="card">')
+        render_admin()
         st.html("</div>")
     with settings_tab:
         st.html('<div class="card">')

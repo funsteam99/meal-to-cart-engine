@@ -5,9 +5,13 @@ param(
     [string]$ServiceName = "freshwise",
     [string]$Region = "asia-east1",
     [string]$Model = "gemini-2.5-flash",
+    [string]$AnalyticsDataset = "freshwise_analytics",
+    [string]$EventsTable = "events",
     [string]$SecretName = "freshwise-google-api-key",
     [string]$SecretsFile = ".streamlit/secrets.toml",
-    [switch]$AllowUnauthenticated = $true
+    [switch]$AllowUnauthenticated = $true,
+    [switch]$EnableAnalytics,
+    [switch]$GrantAnalyticsIam
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,6 +60,10 @@ $gcloud = Resolve-Gcloud
     secretmanager.googleapis.com `
     generativelanguage.googleapis.com
 
+if ($EnableAnalytics) {
+    & $gcloud services enable bigquery.googleapis.com
+}
+
 $apiKey = Read-StreamlitSecret -Path $SecretsFile -Key "api_key"
 if ($apiKey) {
     $secretExists = $true
@@ -83,13 +91,23 @@ $runServiceAccount = "$projectNumber-compute@developer.gserviceaccount.com"
     --member "serviceAccount:$runServiceAccount" `
     --role roles/secretmanager.secretAccessor
 
+if ($EnableAnalytics -and $GrantAnalyticsIam) {
+    & $gcloud projects add-iam-policy-binding $ProjectId `
+        --member "serviceAccount:$runServiceAccount" `
+        --role roles/bigquery.dataEditor
+}
+
 $authFlag = if ($AllowUnauthenticated) { "--allow-unauthenticated" } else { "--no-allow-unauthenticated" }
+$envVars = "DEFAULT_MODEL=$Model"
+if ($EnableAnalytics) {
+    $envVars = "$envVars,BIGQUERY_PROJECT_ID=$ProjectId,BIGQUERY_DATASET=$AnalyticsDataset,BIGQUERY_EVENTS_TABLE=$EventsTable"
+}
 
 & $gcloud run deploy $ServiceName `
     --source . `
     --region $Region `
     --port 8080 `
     $authFlag `
-    --set-env-vars DEFAULT_MODEL=$Model `
+    --set-env-vars $envVars `
     --set-secrets GOOGLE_API_KEY="${SecretName}:latest" `
     --quiet

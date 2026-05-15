@@ -8,9 +8,11 @@ This document records the actual GCP deployment work completed for the Freshwise
 - GCP project number: `539021301650`
 - Region: `asia-east1`
 - Cloud Run service: `freshwise`
-- Latest verified revision: `freshwise-00003-thg`
+- Latest verified revision: `freshwise-00005-9zw`
 - Public URL: https://freshwise-lyhoyhjnca-de.a.run.app
 - Runtime model: `gemini-2.5-flash`
+- Analytics dataset: `freshwise_analytics`
+- Analytics events table: `events`
 
 The deployed service is the current C-side MVP/demo layer:
 
@@ -190,11 +192,77 @@ The deployed service is public:
 allUsers -> roles/run.invoker
 ```
 
+### 11. Added BigQuery Event Logging
+
+The next GCP work item, basic analytics event logging, was implemented and deployed.
+
+The app now records these user journey events:
+
+- `ingredient_detected`
+- `ingredients_updated`
+- `recipe_generated`
+- `product_recommended`
+- `recipe_selected`
+- `cart_quantity_changed`
+- `cart_cleared`
+- `cart_reset`
+- `checkout_started`
+- `order_completed`
+
+The Cloud Run service now has these analytics environment variables:
+
+```text
+BIGQUERY_PROJECT_ID=subtle-fulcrum-496004-d5
+BIGQUERY_DATASET=freshwise_analytics
+BIGQUERY_EVENTS_TABLE=events
+```
+
+The runtime service account was granted BigQuery write access:
+
+```text
+539021301650-compute@developer.gserviceaccount.com -> roles/bigquery.dataEditor
+```
+
+Deployment command:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1 -EnableAnalytics -GrantAnalyticsIam
+```
+
+Cloud Run revision:
+
+```text
+freshwise-00004-mfb
+```
+
+### 12. Added PoC Admin Dashboard
+
+An in-app `Admin` tab was added to read the BigQuery events table and show a lightweight B2B PoC dashboard.
+
+The dashboard covers:
+
+- sessions and total events
+- recipes generated
+- product recommendation exposures
+- mock order count
+- average mock cart subtotal
+- top ingredients
+- top recommended products
+- recent event stream
+
+This keeps the first back-office surface close to the MVP while giving retailer-facing PoC metrics without a separate dashboard product.
+
+Cloud Run revision:
+
+```text
+freshwise-00005-9zw
+```
+
 ## Verification
 
 Cloud Run service state:
 
-- latest ready revision: `freshwise-00003-thg`
+- latest ready revision: `freshwise-00005-9zw`
 - traffic: `100%`
 - URL: https://freshwise-lyhoyhjnca-de.a.run.app
 
@@ -230,6 +298,12 @@ The script handles:
 - granting Cloud Run access to the secret
 - deploying the app to Cloud Run
 
+To also enable BigQuery event logging:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1 -EnableAnalytics -GrantAnalyticsIam
+```
+
 ## Git Record
 
 The deployment support and Gemini fix were committed and pushed to GitHub:
@@ -252,9 +326,8 @@ main
 
 ## Next GCP Work
 
-The current deployment covers the C-side MVP/demo. To match the full Freshwise business plan, the next GCP work should add:
+The current deployment covers the C-side MVP/demo and first-pass BigQuery event logging. To match the full Freshwise business plan, the next GCP work should add:
 
-- BigQuery event logging for recipe generation, product recommendation, add-to-cart, and checkout events
 - Looker Studio dashboard for conversion rate, AOV, product exposure, and GMV
 - Firestore or Cloud SQL for persistent user/session/cart state
 - Cloud Storage abstraction for uploaded fridge photos

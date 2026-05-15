@@ -16,6 +16,7 @@ Freshwise is currently implemented as a Streamlit app so it can be tested quickl
 - **Generate Recipes**: call the configured model to create three recipe options, each with a chef note, missing ingredients, recommended products, and cooking steps.
 - **Choose**: select one of the three recipe options as the current meal.
 - **Cart**: review mock grocery items for the selected recipe, adjust quantities, and place a mock order.
+- **Admin**: review BigQuery analytics for sessions, recipe generation, product exposure, cart activity, and mock orders.
 - **Settings**: change the retail goal and verify model connection status without cluttering the main flow.
 
 ## Features
@@ -24,6 +25,7 @@ Freshwise is currently implemented as a Streamlit app so it can be tested quickl
 - Multimodal ingredient recognition using the same configured model family as recipe generation.
 - Initial recipe and cart views start empty until ingredients are entered and recipes are generated.
 - Local fallback recipe/demo data appears only when the user selects demo ingredients or when the model call is unavailable.
+- Optional BigQuery event logging with an in-app PoC admin dashboard.
 - Mobile-friendly Streamlit layout with app-style tabs.
 - Mock retail catalog and cart totals for meal-to-cart demonstrations.
 
@@ -65,6 +67,7 @@ The app reads model settings from Streamlit secrets first, then falls back to en
 
 - `GOOGLE_API_KEY`, `GEMINI_API_KEY`, or `API_KEY`
 - `MODEL`, `DEFAULT_MODEL`, or `GEMINI_MODEL`
+- `BIGQUERY_DATASET` and `BIGQUERY_EVENTS_TABLE` for optional analytics event logging
 
 Create the API key secret once:
 
@@ -88,6 +91,30 @@ gcloud auth login
 ```
 
 The script enables the required APIs, creates or updates `freshwise-google-api-key` from `.streamlit/secrets.toml` when that file exists, deploys the service from source, sets `DEFAULT_MODEL`, and maps `GOOGLE_API_KEY` from Secret Manager.
+
+To enable BigQuery analytics during deployment:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1 -EnableAnalytics -GrantAnalyticsIam
+```
+
+That adds `roles/bigquery.dataEditor` to the Cloud Run runtime service account so the app can create and write the event table. It also sets:
+
+```text
+BIGQUERY_DATASET=freshwise_analytics
+BIGQUERY_EVENTS_TABLE=events
+```
+
+When those values are present, Freshwise logs recipe, product recommendation, cart, checkout, and mock order events to BigQuery. If BigQuery is unavailable, the app keeps running and writes the event payload to Cloud Logging.
+
+The app includes an `Admin` tab that reads the same BigQuery table and shows the last 30 days of PoC metrics:
+
+- sessions and total events
+- recipes generated
+- product recommendation exposures
+- mock orders and average mock cart subtotal
+- top ingredients and recommended products
+- recent event stream
 
 Current Cloud Run service URL:
 

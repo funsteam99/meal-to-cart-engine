@@ -329,7 +329,7 @@ main
 The current deployment covers the C-side MVP/demo and first-pass BigQuery event logging. To match the full Freshwise business plan, the next GCP work should add:
 
 - Build the Looker Studio dashboard from `docs/analytics-dashboard.md`
-- Add tenant, promotion, model, and order identifiers for richer analytics attribution
+- Add latency, currency, catalog product ID, and tenant config version fields for richer analytics attribution
 - Firestore or Cloud SQL for persistent user/session/cart state
 - Cloud Storage abstraction for uploaded fridge photos
 - retailer connector service for inventory, cart, and checkout APIs

@@ -69,6 +69,7 @@ The app reads model settings from Streamlit secrets first, then falls back to en
 - `GOOGLE_API_KEY`, `GEMINI_API_KEY`, or `API_KEY`
 - `MODEL`, `DEFAULT_MODEL`, or `GEMINI_MODEL`
 - `BIGQUERY_DATASET` and `BIGQUERY_EVENTS_TABLE` for optional analytics event logging
+- `RETAILER_ID` and `PROMOTION_ID` for optional demo attribution labels in analytics events
 
 Create the API key secret once:
 
@@ -107,6 +108,8 @@ BIGQUERY_EVENTS_TABLE=events
 ```
 
 When those values are present, Freshwise logs recipe, product recommendation, cart, checkout, and mock order events to BigQuery. If BigQuery is unavailable, the app keeps running and writes the event payload to Cloud Logging.
+
+Analytics events also include attribution fields in `properties_json`: `retailer_id`, `promotion_id`, `model_name`, and checkout `order_id` where relevant.
 
 The app includes an `Admin` tab that reads the same BigQuery table and shows the last 30 days of PoC metrics:
 

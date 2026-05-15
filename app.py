@@ -23,7 +23,11 @@ MODEL_ENV_KEYS = ("MODEL", "DEFAULT_MODEL", "GEMINI_MODEL")
 BIGQUERY_PROJECT_ENV_KEYS = ("BIGQUERY_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT")
 BIGQUERY_DATASET_ENV_KEYS = ("BIGQUERY_DATASET", "FRESHWISE_BIGQUERY_DATASET")
 BIGQUERY_TABLE_ENV_KEYS = ("BIGQUERY_EVENTS_TABLE", "FRESHWISE_BIGQUERY_EVENTS_TABLE")
+RETAILER_ID_ENV_KEYS = ("RETAILER_ID", "FRESHWISE_RETAILER_ID")
+PROMOTION_ID_ENV_KEYS = ("PROMOTION_ID", "FRESHWISE_PROMOTION_ID")
 DEFAULT_EVENTS_TABLE = "freshwise_events"
+DEFAULT_RETAILER_ID = "demo-retailer"
+DEFAULT_PROMOTION_ID = "demo-promotion"
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
 
@@ -110,6 +114,8 @@ TEXT = {
         "admin_top_products": "Top recommended products",
         "admin_order_items": "Order line items",
         "admin_product_gmv": "Product mock GMV",
+        "admin_promotion_performance": "Promotion performance",
+        "admin_model_performance": "Model performance",
         "admin_recent_events": "Recent events",
     },
     "zh": {
@@ -423,6 +429,14 @@ def read_event_config():
     return {"enabled": bool(dataset), "project_id": project_id, "dataset": dataset, "table": table}
 
 
+def read_attribution_config():
+    return {
+        "retailer_id": get_secret_or_env(("retailer_id",), RETAILER_ID_ENV_KEYS, DEFAULT_RETAILER_ID),
+        "promotion_id": get_secret_or_env(("promotion_id",), PROMOTION_ID_ENV_KEYS, DEFAULT_PROMOTION_ID),
+        "model_name": st.session_state.get("model_name", ""),
+    }
+
+
 @st.cache_resource(show_spinner=False)
 def bigquery_event_table(project_id, dataset_id, table_id):
     from google.cloud import bigquery
@@ -465,7 +479,7 @@ def event_plan_snapshot(plan):
 
 
 def track_event(event_name, properties=None, plan=None):
-    properties = properties or {}
+    properties = {**read_attribution_config(), **(properties or {})}
     event_config = read_event_config()
     selected_plan = plan or normalize_plan(st.session_state.get("plan"))
     row = {
@@ -538,14 +552,18 @@ def track_product_quantity_change(product, previous_quantity, quantity, plan):
     )
 
 
-def track_order_line_items(plan):
+def track_order_line_items(plan, order_id):
     quantities = st.session_state.setdefault("cart_quantities", {})
     for product in plan.get("recommended_products", []):
         name = product.get("name", "")
         quantity = int(quantities.get(name, 0) or 0)
         if quantity <= 0:
             continue
-        track_event("order_line_item", product_event_properties(product, quantity), plan)
+        track_event(
+            "order_line_item",
+            {**product_event_properties(product, quantity), "order_id": order_id},
+            plan,
+        )
 
 
 def row_to_dict(row):
@@ -611,6 +629,47 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
         ORDER BY product_mock_gmv DESC, ordered_units DESC, product_name
         LIMIT 10
     """
+    promotion_performance_sql = f"""
+        WITH session_events AS (
+          SELECT
+            session_id,
+            JSON_VALUE(properties_json, '$.retailer_id') AS retailer_id,
+            JSON_VALUE(properties_json, '$.promotion_id') AS promotion_id,
+            MAX(IF(event_name = 'recipe_generated', 1, 0)) AS has_recipe,
+            MAX(IF(event_name = 'checkout_started', 1, 0)) AS has_checkout,
+            MAX(IF(event_name = 'order_completed', 1, 0)) AS has_order,
+            MAX(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS mock_order_value
+          FROM {table_ref}
+          WHERE {window_filter}
+          GROUP BY session_id, retailer_id, promotion_id
+        )
+        SELECT
+          retailer_id,
+          promotion_id,
+          COUNT(*) AS sessions,
+          SUM(has_recipe) AS recipe_sessions,
+          SUM(has_checkout) AS checkout_sessions,
+          SUM(has_order) AS order_sessions,
+          SAFE_DIVIDE(SUM(has_checkout), SUM(has_recipe)) AS recipe_to_checkout_rate,
+          SUM(IFNULL(mock_order_value, 0)) AS mock_gmv
+        FROM session_events
+        GROUP BY retailer_id, promotion_id
+        ORDER BY mock_gmv DESC, order_sessions DESC
+        LIMIT 10
+    """
+    model_performance_sql = f"""
+        SELECT
+          JSON_VALUE(properties_json, '$.model_name') AS model_name,
+          COUNTIF(event_name = 'recipe_generated') AS recipes_generated,
+          COUNTIF(event_name = 'ingredient_detected') AS photo_recognitions,
+          COUNTIF(event_name = 'order_completed') AS mock_orders,
+          AVG(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS average_mock_order_value
+        FROM {table_ref}
+        WHERE {window_filter}
+        GROUP BY model_name
+        ORDER BY recipes_generated DESC, mock_orders DESC
+        LIMIT 10
+    """
     recent_events_sql = f"""
         SELECT
           event_timestamp,
@@ -631,12 +690,16 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
     top_ingredients = [row_to_dict(row) for row in client.query(top_ingredients_sql).result()]
     top_products = [row_to_dict(row) for row in client.query(top_products_sql).result()]
     ordered_products = [row_to_dict(row) for row in client.query(ordered_products_sql).result()]
+    promotion_performance = [row_to_dict(row) for row in client.query(promotion_performance_sql).result()]
+    model_performance = [row_to_dict(row) for row in client.query(model_performance_sql).result()]
     recent_events = [row_to_dict(row) for row in client.query(recent_events_sql).result()]
     return {
         "metrics": metrics,
         "top_ingredients": top_ingredients,
         "top_products": top_products,
         "ordered_products": ordered_products,
+        "promotion_performance": promotion_performance,
+        "model_performance": model_performance,
         "recent_events": recent_events,
     }
 
@@ -958,6 +1021,8 @@ def css():
 def read_runtime_config():
     api_key = get_secret_or_env(("api_key",), API_KEY_ENV_KEYS)
     model = get_secret_or_env(MODEL_SECRET_KEYS, MODEL_ENV_KEYS)
+    if model:
+        st.session_state["model_name"] = model
 
     missing = []
     if not api_key:
@@ -1441,9 +1506,10 @@ def render_cart():
         track_event("cart_reset", {}, plan)
         st.rerun()
     if st.button(tr("place_order"), type="primary", use_container_width=True):
-        track_event("checkout_started", {"mock_checkout": True}, plan)
-        track_order_line_items(plan)
-        track_event("order_completed", {"mock_order": True}, plan)
+        order_id = uuid.uuid4().hex
+        track_event("checkout_started", {"mock_checkout": True, "order_id": order_id}, plan)
+        track_order_line_items(plan, order_id)
+        track_event("order_completed", {"mock_order": True, "order_id": order_id}, plan)
         st.success(tr("order_success"))
 
 
@@ -1531,6 +1597,20 @@ def render_admin():
         st.dataframe(dashboard["ordered_products"], hide_index=True, use_container_width=True)
     else:
         st.caption(tr("admin_empty"))
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.markdown(f"#### {tr('admin_promotion_performance')}")
+        if dashboard.get("promotion_performance"):
+            st.dataframe(dashboard["promotion_performance"], hide_index=True, use_container_width=True)
+        else:
+            st.caption(tr("admin_empty"))
+    with col4:
+        st.markdown(f"#### {tr('admin_model_performance')}")
+        if dashboard.get("model_performance"):
+            st.dataframe(dashboard["model_performance"], hide_index=True, use_container_width=True)
+        else:
+            st.caption(tr("admin_empty"))
 
     st.markdown(f"#### {tr('admin_recent_events')}")
     st.dataframe(dashboard.get("recent_events", []), hide_index=True, use_container_width=True)

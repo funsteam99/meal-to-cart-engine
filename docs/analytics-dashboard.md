@@ -33,6 +33,13 @@ BIGQUERY_DATASET=freshwise_analytics
 BIGQUERY_EVENTS_TABLE=events
 ```
 
+Events include these attribution fields in `properties_json`:
+
+- `retailer_id`
+- `promotion_id`
+- `model_name`
+- `order_id` for checkout, order, and order line item events
+
 ## Dashboard Pages
 
 ### 1. Executive Summary
@@ -206,6 +213,52 @@ ORDER BY net_quantity_delta DESC, add_events DESC, product_name
 LIMIT 25;
 ```
 
+### Promotion Performance
+
+```sql
+WITH session_events AS (
+  SELECT
+    session_id,
+    JSON_VALUE(properties_json, '$.retailer_id') AS retailer_id,
+    JSON_VALUE(properties_json, '$.promotion_id') AS promotion_id,
+    MAX(IF(event_name = 'recipe_generated', 1, 0)) AS has_recipe,
+    MAX(IF(event_name = 'checkout_started', 1, 0)) AS has_checkout,
+    MAX(IF(event_name = 'order_completed', 1, 0)) AS has_order,
+    MAX(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS mock_order_value
+  FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`
+  WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+  GROUP BY session_id, retailer_id, promotion_id
+)
+SELECT
+  retailer_id,
+  promotion_id,
+  COUNT(*) AS sessions,
+  SUM(has_recipe) AS recipe_sessions,
+  SUM(has_checkout) AS checkout_sessions,
+  SUM(has_order) AS order_sessions,
+  SAFE_DIVIDE(SUM(has_checkout), SUM(has_recipe)) AS recipe_to_checkout_rate,
+  AVG(IF(has_order = 1, mock_order_value, NULL)) AS average_mock_order_value,
+  SUM(IFNULL(mock_order_value, 0)) AS mock_gmv
+FROM session_events
+GROUP BY retailer_id, promotion_id
+ORDER BY mock_gmv DESC, order_sessions DESC;
+```
+
+### Model Performance
+
+```sql
+SELECT
+  JSON_VALUE(properties_json, '$.model_name') AS model_name,
+  COUNTIF(event_name = 'recipe_generated') AS recipes_generated,
+  COUNTIF(event_name = 'ingredient_detected') AS photo_recognitions,
+  COUNTIF(event_name = 'order_completed') AS mock_orders,
+  AVG(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS average_mock_order_value
+FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`
+WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+GROUP BY model_name
+ORDER BY recipes_generated DESC, mock_orders DESC;
+```
+
 ### Top Ingredients
 
 ```sql
@@ -276,12 +329,10 @@ Recommended first page layout:
 
 For a stronger retailer PoC, add these events or fields after the first dashboard is live:
 
-- `retailer_id`: identifies the retail partner or demo tenant
-- `promotion_id`: connects recommended products to sponsored placement or promotion campaigns
 - `recipe_generation_latency_ms`: tracks AI performance and cost impact
-- `model_name`: separates performance by model version
-- `order_id`: groups `order_line_item` events into a single checkout transaction
 - `currency`: separates demo markets once non-USD mock prices are introduced
+- `tenant_config_version`: tracks which retailer catalog and campaign rules generated recommendations
+- `catalog_product_id`: links recommended products to a real retailer SKU once catalog integration starts
 
 ## Demo Talk Track
 

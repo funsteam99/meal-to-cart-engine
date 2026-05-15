@@ -1,0 +1,262 @@
+# Freshwise GCP Deployment Record
+
+This document records the actual GCP deployment work completed for the Freshwise meal-to-cart MVP.
+
+## Current Deployment
+
+- GCP project ID: `subtle-fulcrum-496004-d5`
+- GCP project number: `539021301650`
+- Region: `asia-east1`
+- Cloud Run service: `freshwise`
+- Latest verified revision: `freshwise-00003-thg`
+- Public URL: https://freshwise-lyhoyhjnca-de.a.run.app
+- Runtime model: `gemini-2.5-flash`
+
+The deployed service is the current C-side MVP/demo layer:
+
+- ingredient input
+- fridge/photo ingredient recognition path
+- AI recipe generation
+- missing ingredient recommendation
+- mock cart flow
+
+## Deployment Steps Completed
+
+### 1. Confirmed GCP Project
+
+The target project was confirmed with Google Cloud CLI:
+
+```powershell
+gcloud projects describe subtle-fulcrum-496004-d5
+```
+
+Confirmed values:
+
+- Project ID: `subtle-fulcrum-496004-d5`
+- Project number: `539021301650`
+- Project name: `My Project 93653`
+
+### 2. Installed and Authenticated Google Cloud CLI
+
+Google Cloud CLI was installed locally and authenticated with:
+
+```powershell
+gcloud auth login
+gcloud config set project subtle-fulcrum-496004-d5
+```
+
+The active authenticated account was:
+
+```text
+funsteam99@gmail.com
+```
+
+### 3. Enabled Required GCP APIs
+
+The following APIs were enabled:
+
+```powershell
+gcloud services enable `
+  run.googleapis.com `
+  cloudbuild.googleapis.com `
+  secretmanager.googleapis.com `
+  generativelanguage.googleapis.com
+```
+
+Purpose:
+
+- `run.googleapis.com`: Cloud Run hosting
+- `cloudbuild.googleapis.com`: source-to-container build
+- `secretmanager.googleapis.com`: secure API key storage
+- `generativelanguage.googleapis.com`: Gemini API access
+
+### 4. Created Secret Manager Entry
+
+Secret name:
+
+```text
+freshwise-google-api-key
+```
+
+The secret value was created from local `.streamlit/secrets.toml` using the `api_key` value.
+
+Cloud Run receives the key through this environment variable:
+
+```text
+GOOGLE_API_KEY
+```
+
+### 5. Granted Cloud Run Secret Access
+
+Cloud Run uses this default compute service account:
+
+```text
+539021301650-compute@developer.gserviceaccount.com
+```
+
+It was granted:
+
+```text
+roles/secretmanager.secretAccessor
+```
+
+This allows the Cloud Run revision to read `freshwise-google-api-key`.
+
+### 6. Added Cloud Run Deployment Files
+
+The project now includes:
+
+- `Dockerfile`
+- `.dockerignore`
+- `.gcloudignore`
+- `deploy-cloud-run.ps1`
+
+`Dockerfile` runs Streamlit on Cloud Run port `8080`:
+
+```dockerfile
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]
+```
+
+### 7. Updated Runtime Configuration
+
+`app.py` now supports both Streamlit secrets and GCP environment variables.
+
+API key lookup:
+
+- `st.secrets["api_key"]`
+- `GOOGLE_API_KEY`
+- `GEMINI_API_KEY`
+- `API_KEY`
+
+Model lookup:
+
+- `st.secrets["model"]`
+- `st.secrets["default_model"]`
+- `MODEL`
+- `DEFAULT_MODEL`
+- `GEMINI_MODEL`
+
+### 8. Fixed Gemini Model Calls
+
+The first Cloud Run deployment showed this user-facing fallback message during recipe generation:
+
+```text
+Model call unavailable, using local demo fallback. (Connection error.)
+```
+
+The original implementation used the OpenAI-compatible Gemini endpoint through the `openai` Python client.
+
+The fix was to call Gemini through the native REST API instead:
+
+```text
+https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+```
+
+After this change:
+
+- `openai` was removed from `requirements.txt`
+- Gemini calls use the Python standard library `urllib`
+- errors are logged with `logging.exception`
+- Cloud Run can generate recipes successfully
+
+### 9. Fixed Streamlit Session State Issue
+
+Cloud Run logs showed a Streamlit error when switching language:
+
+```text
+st.session_state.manual_text cannot be modified after the widget with key manual_text is instantiated
+```
+
+The language switch logic was adjusted to avoid mutating `manual_text` after the widget exists.
+
+### 10. Deployed to Cloud Run
+
+The deployment command used was equivalent to:
+
+```powershell
+gcloud run deploy freshwise `
+  --source . `
+  --region asia-east1 `
+  --project subtle-fulcrum-496004-d5 `
+  --port 8080 `
+  --allow-unauthenticated `
+  --set-env-vars DEFAULT_MODEL=gemini-2.5-flash `
+  --set-secrets GOOGLE_API_KEY=freshwise-google-api-key:latest
+```
+
+The deployed service is public:
+
+```text
+allUsers -> roles/run.invoker
+```
+
+## Verification
+
+Cloud Run service state:
+
+- latest ready revision: `freshwise-00003-thg`
+- traffic: `100%`
+- URL: https://freshwise-lyhoyhjnca-de.a.run.app
+
+HTTP check:
+
+```text
+GET / -> 200 OK
+```
+
+Browser test:
+
+1. Opened the deployed Cloud Run URL.
+2. Entered ingredients: `tomatoes, eggs, milk`.
+3. Clicked `Use Manual Input`.
+4. Opened the `Recipe` tab.
+5. Clicked `Generate Recipe`.
+6. Confirmed the app generated three recipe options.
+7. Confirmed status text: `Generated by the configured model.`
+
+## Repeat Deployment
+
+Future deployments can use:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1
+```
+
+The script handles:
+
+- setting the GCP project
+- enabling required APIs
+- creating or updating the Secret Manager secret from `.streamlit/secrets.toml`
+- granting Cloud Run access to the secret
+- deploying the app to Cloud Run
+
+## Git Record
+
+The deployment support and Gemini fix were committed and pushed to GitHub:
+
+```text
+1958e2f Add Cloud Run deployment support
+```
+
+Remote:
+
+```text
+https://github.com/funsteam99/meal-to-cart-engine.git
+```
+
+Branch:
+
+```text
+main
+```
+
+## Next GCP Work
+
+The current deployment covers the C-side MVP/demo. To match the full Freshwise business plan, the next GCP work should add:
+
+- BigQuery event logging for recipe generation, product recommendation, add-to-cart, and checkout events
+- Looker Studio dashboard for conversion rate, AOV, product exposure, and GMV
+- Firestore or Cloud SQL for persistent user/session/cart state
+- Cloud Storage abstraction for uploaded fridge photos
+- retailer connector service for inventory, cart, and checkout APIs
+- optional Vertex AI Embeddings / Vector Search for better product matching

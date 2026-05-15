@@ -328,7 +328,8 @@ main
 
 The current deployment covers the C-side MVP/demo and first-pass BigQuery event logging. To match the full Freshwise business plan, the next GCP work should add:
 
-- Looker Studio dashboard for conversion rate, AOV, product exposure, and GMV
+- Build the Looker Studio dashboard from `docs/analytics-dashboard.md`
+- Product-level cart and order events for product GMV attribution
 - Firestore or Cloud SQL for persistent user/session/cart state
 - Cloud Storage abstraction for uploaded fridge photos
 - retailer connector service for inventory, cart, and checkout APIs

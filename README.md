@@ -129,3 +129,7 @@ This is a functional prototype. It does not connect to a real retailer API, paym
 ## Business Model
 
 See [docs/business-model.md](docs/business-model.md) for a Chinese visual revenue strategy covering PoC fees, SaaS tiers, AI usage fees, and cart/GMV commission.
+
+## Analytics Dashboard
+
+See [docs/analytics-dashboard.md](docs/analytics-dashboard.md) for the first retailer-facing PoC dashboard plan, including Looker Studio pages, KPI definitions, and BigQuery SQL for funnel, product exposure, ingredient, and mock GMV metrics.

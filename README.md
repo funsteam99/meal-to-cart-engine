@@ -57,6 +57,44 @@ streamlit run app.py
 
 Then open the local URL in a browser. For mobile camera testing, deploy to Streamlit Community Cloud or expose the local server through a secure mobile-accessible URL.
 
+## Google Cloud Run Deployment
+
+This repo can run on Google Cloud Run with the included `Dockerfile` and `deploy-cloud-run.ps1`.
+
+The app reads model settings from Streamlit secrets first, then falls back to environment variables:
+
+- `GOOGLE_API_KEY`, `GEMINI_API_KEY`, or `API_KEY`
+- `MODEL`, `DEFAULT_MODEL`, or `GEMINI_MODEL`
+
+Create the API key secret once:
+
+```powershell
+gcloud config set project YOUR_PROJECT_ID
+gcloud services enable secretmanager.googleapis.com
+echo YOUR_GOOGLE_API_KEY | gcloud secrets create freshwise-google-api-key --data-file=-
+```
+
+Deploy:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId YOUR_PROJECT_ID -Region asia-east1
+```
+
+For the current GCP project:
+
+```powershell
+gcloud auth login
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1
+```
+
+The script enables the required APIs, creates or updates `freshwise-google-api-key` from `.streamlit/secrets.toml` when that file exists, deploys the service from source, sets `DEFAULT_MODEL`, and maps `GOOGLE_API_KEY` from Secret Manager.
+
+Current Cloud Run service URL:
+
+```text
+https://freshwise-lyhoyhjnca-de.a.run.app
+```
+
 ## Demo Scope
 
 This is a functional prototype. It does not connect to a real retailer API, payment system, inventory feed, or checkout cart yet. Those screens and data structures are kept intentionally mockable so the app can evolve toward a production/PWA version later.

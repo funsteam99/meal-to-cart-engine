@@ -1,17 +1,23 @@
 import base64
 import html
 import json
+import logging
+import os
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
 
 import streamlit as st
-from openai import OpenAI
 
-DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_API_ENABLE_URL = (
     "https://console.developers.google.com/apis/api/"
     "generativelanguage.googleapis.com/overview"
 )
 MODEL_SECRET_KEYS = ("model", "default_model")
+API_KEY_ENV_KEYS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "API_KEY")
+MODEL_ENV_KEYS = ("MODEL", "DEFAULT_MODEL", "GEMINI_MODEL")
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
 
@@ -689,13 +695,17 @@ def read_runtime_config():
         api_key = st.secrets.get("api_key")
         model = next((st.secrets.get(key) for key in MODEL_SECRET_KEYS if st.secrets.get(key)), None)
     except Exception:
-        return {"ready": False, "api_key": "", "model": "", "error": tr("missing_secrets", items="api_key, default_model")}
+        api_key = ""
+        model = ""
+
+    api_key = api_key or next((os.getenv(key) for key in API_KEY_ENV_KEYS if os.getenv(key)), "")
+    model = model or next((os.getenv(key) for key in MODEL_ENV_KEYS if os.getenv(key)), "")
 
     missing = []
     if not api_key:
-        missing.append("api_key")
+        missing.append("api_key/GOOGLE_API_KEY")
     if not model:
-        missing.append("default_model/model")
+        missing.append("default_model/model/DEFAULT_MODEL")
     if missing:
         return {"ready": False, "api_key": "", "model": "", "error": tr("missing_secrets", items=", ".join(missing))}
     return {"ready": True, "api_key": api_key, "model": model, "error": ""}
@@ -731,6 +741,36 @@ def extract_json(raw):
     return json.loads(match.group(1))
 
 
+def call_gemini(api_key, model, user_parts, system_prompt):
+    model_path = urllib.parse.quote(model, safe="")
+    url = f"{GEMINI_API_BASE_URL}/models/{model_path}:generateContent?key={urllib.parse.quote(api_key)}"
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": user_parts}],
+        "generationConfig": {"responseMimeType": "application/json"},
+    }
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Gemini HTTP {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Gemini connection failed: {exc.reason}") from exc
+
+    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+    if not text:
+        raise ValueError(f"Gemini response missing text: {json.dumps(data)[:500]}")
+    return text
+
+
 def generate_plan(api_key, model, ingredients, business_goal):
     output_language = "Traditional Chinese" if lang() == "zh" else "English"
     system_prompt = f"""
@@ -761,16 +801,13 @@ Return only valid JSON with this shape:
   ]
 }}
 """
-    client = OpenAI(api_key=api_key, base_url=DEFAULT_BASE_URL)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Ingredients: {', '.join(ingredients)}"},
-        ],
-        response_format={"type": "json_object"},
+    raw = call_gemini(
+        api_key,
+        model,
+        [{"text": f"Ingredients: {', '.join(ingredients)}"}],
+        system_prompt,
     )
-    data = extract_json(response.choices[0].message.content)
+    data = extract_json(raw)
     if isinstance(data.get("recipes"), list):
         data["recipes"] = data["recipes"][:3]
     elif not isinstance(data.get("recommended_products"), list):
@@ -781,29 +818,20 @@ Return only valid JSON with this shape:
 def recognize_ingredients(api_key, model, image_bytes):
     output_language = "Traditional Chinese" if lang() == "zh" else "English"
     encoded = base64.b64encode(image_bytes).decode("ascii")
-    client = OpenAI(api_key=api_key, base_url=DEFAULT_BASE_URL)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You identify visible food ingredients from fridge or kitchen photos. "
-                    f"Return only JSON in {output_language}: "
-                    '{"ingredients":["ingredient name"]}. Do not include non-food objects.'
-                ),
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Identify the visible food ingredients."},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}},
-                ],
-            },
+    raw = call_gemini(
+        api_key,
+        model,
+        [
+            {"text": "Identify the visible food ingredients."},
+            {"inlineData": {"mimeType": "image/jpeg", "data": encoded}},
         ],
-        response_format={"type": "json_object"},
+        (
+            "You identify visible food ingredients from fridge or kitchen photos. "
+            f"Return only JSON in {output_language}: "
+            '{"ingredients":["ingredient name"]}. Do not include non-food objects.'
+        ),
     )
-    data = extract_json(response.choices[0].message.content)
+    data = extract_json(raw)
     ingredients = data.get("ingredients", [])
     if not isinstance(ingredients, list):
         raise ValueError("Model JSON missing ingredients.")
@@ -944,6 +972,7 @@ def generate_recipe(runtime_config, business_goal):
             st.session_state["status"] = tr("generated_by_model")
             return
         except Exception as exc:
+            logging.exception("Recipe generation failed")
             st.warning(f"{tr('fallback_recipe')} ({format_model_error(exc)})")
     else:
         st.warning(runtime_config["error"])
@@ -980,6 +1009,7 @@ def render_scan(runtime_config):
                 st.session_state["status"] = tr("recognized_by_model")
                 st.success(tr("photo_recognized_review"))
             except Exception as exc:
+                logging.exception("Photo recognition failed")
                 st.warning(f"{tr('fallback_photo')} ({format_model_error(exc)})")
 
     st.markdown("---")
@@ -1137,7 +1167,6 @@ def render_settings(runtime_config):
     selected_lang = LANGUAGE_OPTIONS[language_label]
     if selected_lang != lang():
         st.session_state["language"] = selected_lang
-        st.session_state["manual_text"] = ""
         st.session_state["plan"] = None
         st.session_state["selected_recipe_index"] = 0
         st.session_state["business_goal"] = TEXT[selected_lang]["goal_options"][0]

@@ -93,6 +93,11 @@ TEXT = {
         "reset_qty": "Reset quantities",
         "place_order": "Place mock order",
         "order_success": "Mock order placed",
+        "order_confirmation_title": "Mock order confirmed",
+        "order_confirmation_body": "This demo order has been recorded for PoC analytics.",
+        "order_number": "Order ID",
+        "order_items": "Items",
+        "order_total": "Order total",
         "need_ingredients": "Add at least one ingredient first.",
         "all_set": "All set",
         "photo_recognized_review": "Photo recognized. Please review the ingredients below.",
@@ -178,6 +183,11 @@ TEXT = {
         "reset_qty": "重設數量",
         "place_order": "送出模擬訂單",
         "order_success": "模擬訂單已送出",
+        "order_confirmation_title": "模擬訂單已確認",
+        "order_confirmation_body": "這筆 demo 訂單已記錄到 PoC 分析事件。",
+        "order_number": "訂單編號",
+        "order_items": "品項數",
+        "order_total": "訂單金額",
         "need_ingredients": "請至少加入一項食材。",
         "all_set": "完成",
         "photo_recognized_review": "照片已辨識，請確認下方食材。",
@@ -1254,6 +1264,41 @@ def cart_totals(plan):
     return round(subtotal, 2), count
 
 
+def cart_line_items(plan):
+    quantities = st.session_state.setdefault("cart_quantities", {})
+    items = []
+    for product in plan.get("recommended_products", []):
+        name = product.get("name", "")
+        qty = int(quantities.get(name, 0) or 0)
+        if qty <= 0:
+            continue
+        price = float(product.get("estimated_price", 0) or 0)
+        items.append(
+            {
+                tr("recommended_products"): name,
+                tr("qty"): qty,
+                tr("subtotal"): money(price * qty),
+            }
+        )
+    return items
+
+
+def render_order_confirmation():
+    order = st.session_state.get("last_mock_order")
+    if not order:
+        return
+    with st.container(border=True):
+        st.success(tr("order_success"))
+        st.markdown(f"### {tr('order_confirmation_title')}")
+        st.caption(tr("order_confirmation_body"))
+        cols = st.columns(3)
+        cols[0].metric(tr("order_items"), int(order.get("item_count", 0)))
+        cols[1].metric(tr("order_total"), money(order.get("total", 0)))
+        cols[2].metric(tr("order_number"), str(order.get("order_id", ""))[:8].upper())
+        if order.get("items"):
+            st.dataframe(order["items"], hide_index=True, use_container_width=True)
+
+
 def set_demo():
     ingredients = parse_ingredients(DEMO_INGREDIENTS[lang()])
     st.session_state["ingredients"] = ingredients
@@ -1488,6 +1533,7 @@ def render_cart():
     if not plan:
         st.info(tr("no_cart"))
         return
+    render_order_confirmation()
     sync_cart(plan)
     products = plan.get("recommended_products", [])
     if not products:
@@ -1539,12 +1585,20 @@ def render_cart():
                 track_product_quantity_change(product, previous_qty, 1, plan)
         track_event("cart_reset", {}, plan)
         st.rerun()
-    if st.button(tr("place_order"), type="primary", use_container_width=True):
+    if st.button(tr("place_order"), type="primary", use_container_width=True, disabled=count <= 0):
         order_id = uuid.uuid4().hex
         track_event("checkout_started", {"mock_checkout": True, "order_id": order_id}, plan)
         track_order_line_items(plan, order_id)
         track_event("order_completed", {"mock_order": True, "order_id": order_id}, plan)
-        st.success(tr("order_success"))
+        st.session_state["last_mock_order"] = {
+            "order_id": order_id,
+            "item_count": count,
+            "subtotal": subtotal,
+            "delivery": delivery,
+            "total": total,
+            "items": cart_line_items(plan),
+        }
+        st.rerun()
 
 
 def render_settings(runtime_config):

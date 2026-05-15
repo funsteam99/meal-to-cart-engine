@@ -416,6 +416,29 @@ def get_secret_or_env(secret_keys, env_keys, default=""):
     return value or next((os.getenv(key) for key in env_keys if os.getenv(key)), default)
 
 
+def normalize_ingredient_name(value, display=True):
+    name = re.sub(r"\s+", " ", str(value or "").strip())
+    if not name:
+        return ""
+    if re.search(r"[A-Za-z]", name):
+        normalized = name.casefold()
+        return normalized.title() if display else normalized
+    return name
+
+
+def normalize_ingredients(values, display=True):
+    normalized = []
+    seen = set()
+    for value in values or []:
+        name = normalize_ingredient_name(value, display=display)
+        key = normalize_ingredient_name(value, display=False)
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(name)
+    return normalized
+
+
 def ensure_session_id():
     if "analytics_session_id" not in st.session_state:
         st.session_state["analytics_session_id"] = uuid.uuid4().hex
@@ -489,7 +512,7 @@ def track_event(event_name, properties=None, plan=None):
         "session_id": ensure_session_id(),
         "language": lang(),
         "business_goal": st.session_state.get("business_goal", ""),
-        "ingredients": st.session_state.get("ingredients", []),
+        "ingredients": normalize_ingredients(st.session_state.get("ingredients", [])),
         "selected_recipe_index": int(st.session_state.get("selected_recipe_index", 0)),
         "properties_json": json.dumps(properties, ensure_ascii=False, sort_keys=True),
         **event_plan_snapshot(selected_plan),
@@ -597,10 +620,19 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
         WHERE {window_filter}
     """
     top_ingredients_sql = f"""
-        SELECT ingredient, COUNT(1) AS event_count
-        FROM {table_ref}, UNNEST(ingredients) AS ingredient
-        WHERE {window_filter}
-        GROUP BY ingredient
+        WITH normalized_ingredients AS (
+          SELECT
+            CASE
+              WHEN REGEXP_CONTAINS(TRIM(ingredient), r'[A-Za-z]') THEN INITCAP(LOWER(TRIM(ingredient)))
+              ELSE TRIM(ingredient)
+            END AS normalized_ingredient
+          FROM {table_ref}, UNNEST(ingredients) AS ingredient
+          WHERE {window_filter}
+            AND TRIM(ingredient) != ''
+        )
+        SELECT normalized_ingredient AS ingredient, COUNT(1) AS event_count
+        FROM normalized_ingredients
+        GROUP BY normalized_ingredient
         ORDER BY event_count DESC, ingredient
         LIMIT 10
     """
@@ -1036,7 +1068,7 @@ def read_runtime_config():
 
 def parse_ingredients(text):
     parts = re.split(r"[,，、\n]+", text or "")
-    return [part.strip().title() if lang() == "en" else part.strip() for part in parts if part.strip()]
+    return normalize_ingredients(parts)
 
 
 def catalog_prompt():
@@ -1158,7 +1190,7 @@ def recognize_ingredients(api_key, model, image_bytes):
     ingredients = data.get("ingredients", [])
     if not isinstance(ingredients, list):
         raise ValueError("Model JSON missing ingredients.")
-    return [str(item).strip() for item in ingredients if str(item).strip()]
+    return normalize_ingredients(ingredients)
 
 
 def fallback_plan(ingredients):
@@ -1385,13 +1417,15 @@ def render_ingredients():
 
     new_item = st.text_input(tr("add_ingredient"), key="new_ingredient")
     if st.button(tr("add"), use_container_width=True):
-        value = new_item.strip().title() if lang() == "en" else new_item.strip()
+        value = normalize_ingredient_name(new_item)
         if value:
-            ingredients.append(value)
-            st.session_state["ingredients"] = ingredients
+            st.session_state["ingredients"] = normalize_ingredients([*ingredients, value])
             st.session_state["plan"] = None
             st.session_state["selected_recipe_index"] = 0
-            track_event("ingredient_added", {"ingredient": value, "ingredient_count": len(ingredients)})
+            track_event(
+                "ingredient_added",
+                {"ingredient": value, "ingredient_count": len(st.session_state["ingredients"])},
+            )
             st.rerun()
 
 

@@ -262,14 +262,24 @@ ORDER BY recipes_generated DESC, mock_orders DESC;
 ### Top Ingredients
 
 ```sql
+WITH normalized_ingredients AS (
+  SELECT
+    session_id,
+    CASE
+      WHEN REGEXP_CONTAINS(TRIM(ingredient), r'[A-Za-z]') THEN INITCAP(LOWER(TRIM(ingredient)))
+      ELSE TRIM(ingredient)
+    END AS normalized_ingredient
+  FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`,
+  UNNEST(ingredients) AS ingredient
+  WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+    AND TRIM(ingredient) != ''
+)
 SELECT
-  ingredient,
+  normalized_ingredient AS ingredient,
   COUNT(*) AS event_count,
   COUNT(DISTINCT session_id) AS sessions
-FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`,
-UNNEST(ingredients) AS ingredient
-WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
-GROUP BY ingredient
+FROM normalized_ingredients
+GROUP BY normalized_ingredient
 ORDER BY sessions DESC, event_count DESC, ingredient
 LIMIT 25;
 ```

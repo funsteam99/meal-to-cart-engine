@@ -26,6 +26,7 @@ Freshwise is currently implemented as a Streamlit app so it can be tested quickl
 - Initial recipe and cart views start empty until ingredients are entered and recipes are generated.
 - Local fallback recipe/demo data appears only when the user selects demo ingredients or when the model call is unavailable.
 - Optional BigQuery event logging with an in-app PoC admin dashboard.
+- Product-level cart and mock order line-item events for attribution analysis.
 - Mobile-friendly Streamlit layout with app-style tabs.
 - Mock retail catalog and cart totals for meal-to-cart demonstrations.
 

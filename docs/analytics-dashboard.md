@@ -82,13 +82,13 @@ Use this page to show retailer value.
 Recommended tables:
 
 - Recommended products by exposure count
-- Recommended products by mock orders after exposure
+- Recommended products by order line item count
 - Product exposure to checkout rate
-- Product exposure to mock GMV
+- Product-level mock GMV
 
 Current limitation:
 
-The MVP logs product exposure and order events, but it does not yet log product-level cart contents at order time. For now, product GMV should be treated as directional unless product-level order rows are added.
+The MVP uses mock product prices and mock checkout, so product GMV is directional PoC evidence rather than retailer-settled revenue.
 
 ### 4. Ingredient And Meal Insights
 
@@ -171,6 +171,41 @@ ORDER BY exposure_count DESC, product_name
 LIMIT 25;
 ```
 
+### Product Mock GMV
+
+```sql
+SELECT
+  JSON_VALUE(properties_json, '$.product_name') AS product_name,
+  SUM(CAST(JSON_VALUE(properties_json, '$.quantity') AS INT64)) AS ordered_units,
+  AVG(CAST(JSON_VALUE(properties_json, '$.estimated_price') AS FLOAT64)) AS average_estimated_price,
+  SUM(CAST(JSON_VALUE(properties_json, '$.line_subtotal') AS FLOAT64)) AS product_mock_gmv,
+  COUNT(DISTINCT session_id) AS ordering_sessions
+FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`
+WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+  AND event_name = 'order_line_item'
+  AND JSON_VALUE(properties_json, '$.product_name') IS NOT NULL
+GROUP BY product_name
+ORDER BY product_mock_gmv DESC, ordered_units DESC, product_name
+LIMIT 25;
+```
+
+### Product Cart Changes
+
+```sql
+SELECT
+  JSON_VALUE(properties_json, '$.product_name') AS product_name,
+  COUNTIF(event_name = 'product_added_to_cart') AS add_events,
+  COUNTIF(event_name = 'product_removed_from_cart') AS remove_events,
+  SUM(CAST(JSON_VALUE(properties_json, '$.quantity_delta') AS INT64)) AS net_quantity_delta
+FROM `subtle-fulcrum-496004-d5.freshwise_analytics.events`
+WHERE event_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+  AND event_name IN ('product_added_to_cart', 'product_removed_from_cart')
+  AND JSON_VALUE(properties_json, '$.product_name') IS NOT NULL
+GROUP BY product_name
+ORDER BY net_quantity_delta DESC, add_events DESC, product_name
+LIMIT 25;
+```
+
 ### Top Ingredients
 
 ```sql
@@ -241,13 +276,12 @@ Recommended first page layout:
 
 For a stronger retailer PoC, add these events or fields after the first dashboard is live:
 
-- `product_added_to_cart`: product-level add event with product name, quantity, price, and source recipe
-- `product_removed_from_cart`: product-level removal event
-- `order_line_item`: repeated product-level order record or a separate order items table
 - `retailer_id`: identifies the retail partner or demo tenant
 - `promotion_id`: connects recommended products to sponsored placement or promotion campaigns
 - `recipe_generation_latency_ms`: tracks AI performance and cost impact
 - `model_name`: separates performance by model version
+- `order_id`: groups `order_line_item` events into a single checkout transaction
+- `currency`: separates demo markets once non-USD mock prices are introduced
 
 ## Demo Talk Track
 

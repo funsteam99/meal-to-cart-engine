@@ -108,6 +108,8 @@ TEXT = {
         "admin_avg_cart": "Avg mock cart",
         "admin_top_ingredients": "Top ingredients",
         "admin_top_products": "Top recommended products",
+        "admin_order_items": "Order line items",
+        "admin_product_gmv": "Product mock GMV",
         "admin_recent_events": "Recent events",
     },
     "zh": {
@@ -509,6 +511,43 @@ def track_recommended_products(source):
         )
 
 
+def product_event_properties(product, quantity, previous_quantity=None):
+    quantity = int(quantity or 0)
+    price = float(product.get("estimated_price", 0) or 0)
+    properties = {
+        "product_name": product.get("name", ""),
+        "quantity": quantity,
+        "estimated_price": price,
+        "line_subtotal": round(price * quantity, 2),
+        "reason": product.get("reason", ""),
+    }
+    if previous_quantity is not None:
+        previous_quantity = int(previous_quantity or 0)
+        properties["previous_quantity"] = previous_quantity
+        properties["quantity_delta"] = quantity - previous_quantity
+    return properties
+
+
+def track_product_quantity_change(product, previous_quantity, quantity, plan):
+    event_name = "product_added_to_cart" if quantity > previous_quantity else "product_removed_from_cart"
+    track_event(event_name, product_event_properties(product, quantity, previous_quantity), plan)
+    track_event(
+        "cart_quantity_changed",
+        product_event_properties(product, quantity, previous_quantity),
+        plan,
+    )
+
+
+def track_order_line_items(plan):
+    quantities = st.session_state.setdefault("cart_quantities", {})
+    for product in plan.get("recommended_products", []):
+        name = product.get("name", "")
+        quantity = int(quantities.get(name, 0) or 0)
+        if quantity <= 0:
+            continue
+        track_event("order_line_item", product_event_properties(product, quantity), plan)
+
+
 def row_to_dict(row):
     return {key: row[key] for key in row.keys()}
 
@@ -527,7 +566,15 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
           COUNTIF(event_name = 'product_recommended') AS product_recommendation_count,
           COUNTIF(event_name = 'checkout_started') AS checkout_count,
           COUNTIF(event_name = 'order_completed') AS order_count,
-          AVG(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS avg_order_cart_subtotal
+          COUNTIF(event_name = 'order_line_item') AS order_line_item_count,
+          AVG(IF(event_name = 'order_completed', cart_subtotal, NULL)) AS avg_order_cart_subtotal,
+          SUM(
+            IF(
+              event_name = 'order_line_item',
+              CAST(JSON_VALUE(properties_json, '$.line_subtotal') AS FLOAT64),
+              0
+            )
+          ) AS product_mock_gmv
         FROM {table_ref}
         WHERE {window_filter}
     """
@@ -551,6 +598,19 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
         ORDER BY exposure_count DESC, product_name
         LIMIT 10
     """
+    ordered_products_sql = f"""
+        SELECT
+          JSON_VALUE(properties_json, '$.product_name') AS product_name,
+          SUM(CAST(JSON_VALUE(properties_json, '$.quantity') AS INT64)) AS ordered_units,
+          SUM(CAST(JSON_VALUE(properties_json, '$.line_subtotal') AS FLOAT64)) AS product_mock_gmv
+        FROM {table_ref}
+        WHERE {window_filter}
+          AND event_name = 'order_line_item'
+          AND JSON_VALUE(properties_json, '$.product_name') IS NOT NULL
+        GROUP BY product_name
+        ORDER BY product_mock_gmv DESC, ordered_units DESC, product_name
+        LIMIT 10
+    """
     recent_events_sql = f"""
         SELECT
           event_timestamp,
@@ -570,11 +630,13 @@ def fetch_admin_dashboard(project_id, dataset_id, table_id):
     metrics = row_to_dict(metrics_rows[0]) if metrics_rows else {}
     top_ingredients = [row_to_dict(row) for row in client.query(top_ingredients_sql).result()]
     top_products = [row_to_dict(row) for row in client.query(top_products_sql).result()]
+    ordered_products = [row_to_dict(row) for row in client.query(ordered_products_sql).result()]
     recent_events = [row_to_dict(row) for row in client.query(recent_events_sql).result()]
     return {
         "metrics": metrics,
         "top_ingredients": top_ingredients,
         "top_products": top_products,
+        "ordered_products": ordered_products,
         "recent_events": recent_events,
     }
 
@@ -1341,21 +1403,15 @@ def render_cart():
         c1, c2, c3 = st.columns([1, 1, 1])
         qty = int(st.session_state["cart_quantities"].get(name, 1))
         if c1.button("-", key=f"minus_{name}", use_container_width=True, disabled=qty <= 0):
-            st.session_state["cart_quantities"][name] = max(0, qty - 1)
-            track_event(
-                "cart_quantity_changed",
-                {"product_name": name, "quantity": st.session_state["cart_quantities"][name]},
-                plan,
-            )
+            next_qty = max(0, qty - 1)
+            st.session_state["cart_quantities"][name] = next_qty
+            track_product_quantity_change(product, qty, next_qty, plan)
             st.rerun()
         c2.metric(tr("qty"), qty)
         if c3.button("+", key=f"plus_{name}", use_container_width=True):
-            st.session_state["cart_quantities"][name] = qty + 1
-            track_event(
-                "cart_quantity_changed",
-                {"product_name": name, "quantity": st.session_state["cart_quantities"][name]},
-                plan,
-            )
+            next_qty = qty + 1
+            st.session_state["cart_quantities"][name] = next_qty
+            track_product_quantity_change(product, qty, next_qty, plan)
             st.rerun()
 
     subtotal, count = cart_totals(plan)
@@ -1367,17 +1423,26 @@ def render_cart():
 
     col1, col2 = st.columns(2)
     if col1.button(tr("clear_cart"), use_container_width=True):
-        for name in st.session_state["cart_quantities"]:
+        for product in products:
+            name = product.get("name", "")
+            previous_qty = int(st.session_state["cart_quantities"].get(name, 0) or 0)
             st.session_state["cart_quantities"][name] = 0
+            if previous_qty:
+                track_product_quantity_change(product, previous_qty, 0, plan)
         track_event("cart_cleared", {}, plan)
         st.rerun()
     if col2.button(tr("reset_qty"), use_container_width=True):
-        for name in st.session_state["cart_quantities"]:
+        for product in products:
+            name = product.get("name", "")
+            previous_qty = int(st.session_state["cart_quantities"].get(name, 0) or 0)
             st.session_state["cart_quantities"][name] = 1
+            if previous_qty != 1:
+                track_product_quantity_change(product, previous_qty, 1, plan)
         track_event("cart_reset", {}, plan)
         st.rerun()
     if st.button(tr("place_order"), type="primary", use_container_width=True):
         track_event("checkout_started", {"mock_checkout": True}, plan)
+        track_order_line_items(plan)
         track_event("order_completed", {"mock_order": True}, plan)
         st.success(tr("order_success"))
 
@@ -1443,6 +1508,10 @@ def render_admin():
     second_row[1].metric(tr("admin_orders"), int(metrics.get("order_count") or 0))
     second_row[2].metric(tr("admin_avg_cart"), money(metrics.get("avg_order_cart_subtotal") or 0))
 
+    third_row = st.columns(2)
+    third_row[0].metric(tr("admin_order_items"), int(metrics.get("order_line_item_count") or 0))
+    third_row[1].metric(tr("admin_product_gmv"), money(metrics.get("product_mock_gmv") or 0))
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"#### {tr('admin_top_ingredients')}")
@@ -1456,6 +1525,12 @@ def render_admin():
             st.dataframe(dashboard["top_products"], hide_index=True, use_container_width=True)
         else:
             st.caption(tr("admin_empty"))
+
+    st.markdown(f"#### {tr('admin_product_gmv')}")
+    if dashboard.get("ordered_products"):
+        st.dataframe(dashboard["ordered_products"], hide_index=True, use_container_width=True)
+    else:
+        st.caption(tr("admin_empty"))
 
     st.markdown(f"#### {tr('admin_recent_events')}")
     st.dataframe(dashboard.get("recent_events", []), hide_index=True, use_container_width=True)

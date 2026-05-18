@@ -8,7 +8,7 @@ This document records the actual GCP deployment work completed for the Freshwise
 - GCP project number: `539021301650`
 - Region: `asia-east1`
 - Cloud Run service: `freshwise`
-- Latest verified revision: `freshwise-00007-qgh`
+- Latest verified revision: `freshwise-00008-zmz`
 - Public URL: https://freshwise-539021301650.asia-east1.run.app
 - Previous public URL: https://freshwise-lyhoyhjnca-de.a.run.app
 - Runtime model: `gemini-2.5-flash`
@@ -282,11 +282,26 @@ Cloud Run revision:
 freshwise-00007-qgh
 ```
 
+### 14. Expanded Mock Retailer Catalog
+
+The mock retailer catalog was expanded from 6 to 12 SKUs and product analytics now include:
+
+- `category`
+- `promotion_label`
+
+These fields are emitted for recommendation, cart quantity change, and order line item events.
+
+Cloud Run revision:
+
+```text
+freshwise-00008-zmz
+```
+
 ## Verification
 
 Cloud Run service state:
 
-- latest ready revision: `freshwise-00007-qgh`
+- latest ready revision: `freshwise-00008-zmz`
 - traffic: `100%`
 - URL: https://freshwise-539021301650.asia-east1.run.app
 - previous URL: https://freshwise-lyhoyhjnca-de.a.run.app

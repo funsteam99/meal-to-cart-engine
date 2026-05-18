@@ -4,7 +4,7 @@ This checklist summarizes the current project status and next work items from th
 
 ## Completed
 
-- Cloud Run redeployed to revision `freshwise-00007-qgh`.
+- Cloud Run redeployed to revision `freshwise-00008-zmz`.
 - Admin page Traditional Chinese labels added and deployed.
 - BigQuery analytics event logging added.
 - Product-level analytics events added:

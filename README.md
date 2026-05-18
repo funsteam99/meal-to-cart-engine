@@ -148,3 +148,7 @@ See [docs/analytics-dashboard.md](docs/analytics-dashboard.md) for the first ret
 ## Retailer PoC Scope
 
 See [docs/poc-scope.md](docs/poc-scope.md) for the suggested first PoC scope, success metrics, and pricing options.
+
+## Future Integration Requirements
+
+See [docs/future-integration-requirements.md](docs/future-integration-requirements.md) for inventory, cart, catalog, promotion, state, and photo storage integration requirements.

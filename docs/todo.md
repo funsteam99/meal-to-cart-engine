@@ -114,9 +114,9 @@ This checklist summarizes the current project status and next work items from th
 
 ## Future Integration
 
-- [ ] Define retailer inventory API requirements.
-- [ ] Define cart API or checkout deep-link requirements.
-- [ ] Define product catalog import format.
-- [ ] Define promotion campaign mapping.
-- [ ] Decide whether persistent app state should use Firestore or Cloud SQL.
-- [ ] Add Cloud Storage abstraction for uploaded fridge photos.
+- [x] Define retailer inventory API requirements.
+- [x] Define cart API or checkout deep-link requirements.
+- [x] Define product catalog import format.
+- [x] Define promotion campaign mapping.
+- [x] Decide whether persistent app state should use Firestore or Cloud SQL.
+- [x] Add Cloud Storage abstraction for uploaded fridge photos.

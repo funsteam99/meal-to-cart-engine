@@ -45,8 +45,8 @@ This checklist summarizes the current project status and next work items from th
 
 - [x] Verify `recipe_generated` events.
 - [x] Verify `product_recommended` events.
-- [ ] Verify `product_added_to_cart` events.
-- [ ] Verify `product_removed_from_cart` events.
+- [x] Verify `product_added_to_cart` events.
+- [x] Verify `product_removed_from_cart` events.
 - [x] Verify `order_line_item` events.
 - [x] Verify `order_completed` events.
 - [x] Verify `ingredient_detected` photo events.

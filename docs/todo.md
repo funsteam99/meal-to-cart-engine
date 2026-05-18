@@ -88,9 +88,9 @@ This checklist summarizes the current project status and next work items from th
 
 ## Retailer PoC Prep
 
-- [ ] Build a retailer-specific mock catalog with 10-20 SKUs.
-- [ ] Add SKU categories and promotion labels.
-- [ ] Map recommended products to mock catalog IDs.
+- [x] Build a retailer-specific mock catalog with 10-20 SKUs.
+- [x] Add SKU categories and promotion labels.
+- [x] Map recommended products to mock catalog IDs.
 - [ ] Define PoC success metrics:
   - recipe generation rate
   - product exposure

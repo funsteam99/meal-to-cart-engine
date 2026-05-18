@@ -62,6 +62,8 @@ The current demo does not claim real checkout integration. It proves the convers
 - `order_line_item`: product-level mock GMV
 - `order_completed`: mock order conversion
 - `catalog_product_id`: SKU-level attribution
+- `category`: product category performance
+- `promotion_label`: campaign or promotion attribution
 - `recipe_generation_latency_ms`: AI generation speed
 - `photo_recognition_latency_ms`: fridge recognition speed
 

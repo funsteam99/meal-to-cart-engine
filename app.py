@@ -228,6 +228,8 @@ CATALOG = [
         "name_zh": "鮮奶油",
         "category_en": "Dairy",
         "category_zh": "乳製品",
+        "promotion_label_en": "Dinner sauce bundle",
+        "promotion_label_zh": "晚餐醬汁組合",
         "price": 2.49,
         "reason_en": "Makes tomato sauce smooth and rich.",
         "reason_zh": "讓番茄醬汁更滑順濃郁。",
@@ -238,6 +240,8 @@ CATALOG = [
         "name_zh": "帕瑪森起司",
         "category_en": "Dairy",
         "category_zh": "乳製品",
+        "promotion_label_en": "Italian night add-on",
+        "promotion_label_zh": "義式晚餐加購",
         "price": 2.99,
         "reason_en": "Adds a nutty, salty finish.",
         "reason_zh": "增加鹹香與堅果風味。",
@@ -248,6 +252,8 @@ CATALOG = [
         "name_zh": "新鮮羅勒",
         "category_en": "Herbs",
         "category_zh": "香草",
+        "promotion_label_en": "Fresh flavor boost",
+        "promotion_label_zh": "清新風味加分",
         "price": 1.79,
         "reason_en": "Brings a fresh green lift.",
         "reason_zh": "讓料理更清新有層次。",
@@ -258,6 +264,8 @@ CATALOG = [
         "name_zh": "大蒜",
         "category_en": "Produce",
         "category_zh": "蔬果",
+        "promotion_label_en": "Pantry essential",
+        "promotion_label_zh": "料理基本配料",
         "price": 0.89,
         "reason_en": "Builds the savory base.",
         "reason_zh": "建立料理的鹹香底味。",
@@ -268,6 +276,8 @@ CATALOG = [
         "name_zh": "義大利麵",
         "category_en": "Pantry",
         "category_zh": "乾貨",
+        "promotion_label_en": "Quick dinner base",
+        "promotion_label_zh": "快速晚餐主食",
         "price": 1.99,
         "reason_en": "Turns fridge odds and ends into dinner.",
         "reason_zh": "把冰箱剩餘食材變成完整晚餐。",
@@ -278,9 +288,83 @@ CATALOG = [
         "name_zh": "小番茄",
         "category_en": "Produce",
         "category_zh": "蔬果",
+        "promotion_label_en": "Fresh produce spotlight",
+        "promotion_label_zh": "新鮮蔬果主打",
         "price": 3.49,
         "reason_en": "Cooks down into a sweet quick sauce.",
         "reason_zh": "能快速煮出清甜醬汁。",
+    },
+    {
+        "catalog_product_id": "demo-baby-spinach",
+        "name_en": "Baby Spinach",
+        "name_zh": "嫩菠菜",
+        "category_en": "Produce",
+        "category_zh": "蔬果",
+        "promotion_label_en": "Leafy greens feature",
+        "promotion_label_zh": "葉菜促銷",
+        "price": 2.79,
+        "reason_en": "Adds fast-cooking greens to bowls, pasta, and eggs.",
+        "reason_zh": "適合快速加入碗餐、義大利麵或蛋料理。",
+    },
+    {
+        "catalog_product_id": "demo-free-range-eggs",
+        "name_en": "Free Range Eggs",
+        "name_zh": "放牧雞蛋",
+        "category_en": "Protein",
+        "category_zh": "蛋白質",
+        "promotion_label_en": "Breakfast-to-dinner protein",
+        "promotion_label_zh": "早晚餐蛋白質",
+        "price": 4.49,
+        "reason_en": "Turns leftovers into omelets, frittatas, and quick bowls.",
+        "reason_zh": "能把剩餘食材做成歐姆蛋、烘蛋或快速碗餐。",
+    },
+    {
+        "catalog_product_id": "demo-shredded-mozzarella",
+        "name_en": "Shredded Mozzarella",
+        "name_zh": "莫札瑞拉起司絲",
+        "category_en": "Dairy",
+        "category_zh": "乳製品",
+        "promotion_label_en": "Melted cheese upgrade",
+        "promotion_label_zh": "焗烤起司升級",
+        "price": 3.29,
+        "reason_en": "Melts cleanly into baked pasta, eggs, and toast.",
+        "reason_zh": "適合焗烤義大利麵、蛋料理和吐司。",
+    },
+    {
+        "catalog_product_id": "demo-chicken-breast",
+        "name_en": "Chicken Breast",
+        "name_zh": "雞胸肉",
+        "category_en": "Protein",
+        "category_zh": "蛋白質",
+        "promotion_label_en": "Lean protein feature",
+        "promotion_label_zh": "低脂蛋白主打",
+        "price": 5.99,
+        "reason_en": "Adds lean protein to salads, pasta, and rice bowls.",
+        "reason_zh": "為沙拉、義大利麵和飯碗增加低脂蛋白質。",
+    },
+    {
+        "catalog_product_id": "demo-jasmine-rice",
+        "name_en": "Jasmine Rice",
+        "name_zh": "茉莉香米",
+        "category_en": "Pantry",
+        "category_zh": "乾貨",
+        "promotion_label_en": "Family meal staple",
+        "promotion_label_zh": "家庭餐桌主食",
+        "price": 6.49,
+        "reason_en": "Creates a simple base for stir-fries and meal bowls.",
+        "reason_zh": "可作為快炒和碗餐的簡單主食基底。",
+    },
+    {
+        "catalog_product_id": "demo-extra-virgin-olive-oil",
+        "name_en": "Extra Virgin Olive Oil",
+        "name_zh": "特級初榨橄欖油",
+        "category_en": "Pantry",
+        "category_zh": "乾貨",
+        "promotion_label_en": "Premium pantry upgrade",
+        "promotion_label_zh": "高端乾貨升級",
+        "price": 8.99,
+        "reason_en": "Finishes vegetables, pasta, and simple sauces.",
+        "reason_zh": "適合收尾蔬菜、義大利麵和簡單醬汁。",
     },
 ]
 
@@ -589,6 +673,8 @@ def track_recommended_products(source):
                 "product_index": index,
                 "catalog_product_id": product.get("catalog_product_id", ""),
                 "product_name": product.get("name", ""),
+                "category": product.get("category", ""),
+                "promotion_label": product.get("promotion_label", ""),
                 "estimated_price": float(product.get("estimated_price", 0) or 0),
             },
             plan,
@@ -601,6 +687,8 @@ def product_event_properties(product, quantity, previous_quantity=None):
     properties = {
         "catalog_product_id": product.get("catalog_product_id", ""),
         "product_name": product.get("name", ""),
+        "category": product.get("category", ""),
+        "promotion_label": product.get("promotion_label", ""),
         "quantity": quantity,
         "estimated_price": price,
         "line_subtotal": round(price * quantity, 2),
@@ -1125,7 +1213,7 @@ def catalog_prompt():
     for item in CATALOG:
         rows.append(
             f"- {item['catalog_product_id']} / {item[f'name_{suffix}']} / {item[f'category_{suffix}']} / "
-            f"${item['price']:.2f} / {item[f'reason_{suffix}']}"
+            f"{item[f'promotion_label_{suffix}']} / ${item['price']:.2f} / {item[f'reason_{suffix}']}"
         )
     return "\n".join(rows)
 
@@ -1148,6 +1236,8 @@ def enrich_recommended_product(product):
     if catalog_item:
         product.setdefault("catalog_product_id", catalog_item["catalog_product_id"])
         product.setdefault("estimated_price", catalog_item["price"])
+        product.setdefault("category", catalog_item[f"category_{lang()}"])
+        product.setdefault("promotion_label", catalog_item[f"promotion_label_{lang()}"])
     return product
 
 
@@ -1217,7 +1307,7 @@ Return only valid JSON with this shape:
       "owned_ingredients": ["string"],
       "missing_items": ["string"],
       "recommended_products": [
-        {{"catalog_product_id": "string", "name": "string", "reason": "string", "estimated_price": 0}}
+        {{"catalog_product_id": "string", "name": "string", "category": "string", "promotion_label": "string", "reason": "string", "estimated_price": 0}}
       ],
       "recipe_steps": ["string"],
       "cart_summary": {{"item_count": 0, "estimated_total": 0}}

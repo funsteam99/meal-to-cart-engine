@@ -14,6 +14,7 @@ Recent BigQuery events confirmed the demo path has data for:
 
 - `ingredients_updated`
 - `recipe_generated`
+- `recipe_selected`
 - `product_recommended`
 - `product_added_to_cart`
 - `product_removed_from_cart`
@@ -24,12 +25,18 @@ Recent BigQuery events confirmed the demo path has data for:
 The latest verified session included:
 
 - 1 `recipe_generated`
+- 1 `recipe_selected`
 - 5 `product_recommended`
 - 2 `product_added_to_cart`
 - 2 `product_removed_from_cart`
 - 5 `order_line_item`
 - 1 `order_completed`
-- mock cart subtotal: `$17.15`
+- mock cart subtotal: `$25.13`
+
+The selected recipe event included:
+
+- `recipe_index`: `2`
+- meal title: `奶油番茄菠菜雞肉義大利麵`
 
 ## Admin Metrics Evidence
 
@@ -70,6 +77,4 @@ Visual browser confirmation was provided by screenshot for:
 - Mock order confirmation card after checkout.
 - Confirmation card order metrics: item count, order total, order ID, and line items.
 
-These still require visual browser confirmation:
-
-- Confirm the full flow includes selecting a recipe and returning to Admin.
+The full flow including recipe selection, cart quantity changes, checkout, order line items, order completion, and returnable Admin metrics is verified by BigQuery event order.

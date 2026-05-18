@@ -30,7 +30,7 @@ This checklist summarizes the current project status and next work items from th
 - [x] Open the deployed Cloud Run app.
 - [x] Switch the UI language to Traditional Chinese.
 - [x] Open the Admin tab and confirm all labels are localized.
-- [ ] Run a full demo flow:
+- [x] Run a full demo flow:
   - enter ingredients
   - generate recipes
   - select a recipe

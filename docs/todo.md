@@ -93,13 +93,13 @@ This checklist summarizes the current project status and next work items from th
 - [x] Build a retailer-specific mock catalog with 10-20 SKUs.
 - [x] Add SKU categories and promotion labels.
 - [x] Map recommended products to mock catalog IDs.
-- [ ] Define PoC success metrics:
+- [x] Define PoC success metrics:
   - recipe generation rate
   - product exposure
   - add-to-cart activity
   - mock order conversion
   - product mock GMV
-- [ ] Prepare PoC scope and pricing options.
+- [x] Prepare PoC scope and pricing options.
 
 ## Dashboard Work
 

@@ -144,3 +144,7 @@ See [docs/business-model.md](docs/business-model.md) for a Chinese visual revenu
 ## Analytics Dashboard
 
 See [docs/analytics-dashboard.md](docs/analytics-dashboard.md) for the first retailer-facing PoC dashboard plan, including Looker Studio pages, KPI definitions, and BigQuery SQL for funnel, product exposure, ingredient, and mock GMV metrics.
+
+## Retailer PoC Scope
+
+See [docs/poc-scope.md](docs/poc-scope.md) for the suggested first PoC scope, success metrics, and pricing options.

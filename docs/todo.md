@@ -38,8 +38,8 @@ This checklist summarizes the current project status and next work items from th
   - place a mock order
   - return to Admin
 - [ ] Confirm the mock order confirmation card appears after checkout.
-- [ ] Confirm Top ingredients groups duplicate casing correctly.
-- [ ] Confirm Admin metrics update after the flow.
+- [x] Confirm Top ingredients groups duplicate casing correctly.
+- [x] Confirm Admin metrics update after the flow.
 
 ## Analytics Verification
 

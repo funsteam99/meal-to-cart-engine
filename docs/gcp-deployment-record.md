@@ -8,8 +8,9 @@ This document records the actual GCP deployment work completed for the Freshwise
 - GCP project number: `539021301650`
 - Region: `asia-east1`
 - Cloud Run service: `freshwise`
-- Latest verified revision: `freshwise-00005-9zw`
-- Public URL: https://freshwise-lyhoyhjnca-de.a.run.app
+- Latest verified revision: `freshwise-00007-qgh`
+- Public URL: https://freshwise-539021301650.asia-east1.run.app
+- Previous public URL: https://freshwise-lyhoyhjnca-de.a.run.app
 - Runtime model: `gemini-2.5-flash`
 - Analytics dataset: `freshwise_analytics`
 - Analytics events table: `events`
@@ -258,18 +259,43 @@ Cloud Run revision:
 freshwise-00005-9zw
 ```
 
+### 13. Added PoC Attribution Analytics Fields
+
+Product and model analytics were extended with stronger PoC attribution fields in `properties_json`:
+
+- `catalog_product_id`
+- `currency`
+- `tenant_config_version`
+- `recipe_generation_latency_ms`
+- `photo_recognition_latency_ms`
+- `estimated_request_count`
+
+The deployment command used:
+
+```powershell
+.\deploy-cloud-run.ps1 -ProjectId subtle-fulcrum-496004-d5 -Region asia-east1 -EnableAnalytics -GrantAnalyticsIam
+```
+
+Cloud Run revision:
+
+```text
+freshwise-00007-qgh
+```
+
 ## Verification
 
 Cloud Run service state:
 
-- latest ready revision: `freshwise-00005-9zw`
+- latest ready revision: `freshwise-00007-qgh`
 - traffic: `100%`
-- URL: https://freshwise-lyhoyhjnca-de.a.run.app
+- URL: https://freshwise-539021301650.asia-east1.run.app
+- previous URL: https://freshwise-lyhoyhjnca-de.a.run.app
 
 HTTP check:
 
 ```text
-GET / -> 200 OK
+GET https://freshwise-539021301650.asia-east1.run.app -> 200 OK
+GET https://freshwise-lyhoyhjnca-de.a.run.app -> 200 OK
 ```
 
 Browser test:

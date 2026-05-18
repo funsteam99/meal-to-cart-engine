@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,9 +26,13 @@ BIGQUERY_DATASET_ENV_KEYS = ("BIGQUERY_DATASET", "FRESHWISE_BIGQUERY_DATASET")
 BIGQUERY_TABLE_ENV_KEYS = ("BIGQUERY_EVENTS_TABLE", "FRESHWISE_BIGQUERY_EVENTS_TABLE")
 RETAILER_ID_ENV_KEYS = ("RETAILER_ID", "FRESHWISE_RETAILER_ID")
 PROMOTION_ID_ENV_KEYS = ("PROMOTION_ID", "FRESHWISE_PROMOTION_ID")
+CURRENCY_ENV_KEYS = ("CURRENCY", "FRESHWISE_CURRENCY")
+TENANT_CONFIG_VERSION_ENV_KEYS = ("TENANT_CONFIG_VERSION", "FRESHWISE_TENANT_CONFIG_VERSION")
 DEFAULT_EVENTS_TABLE = "freshwise_events"
 DEFAULT_RETAILER_ID = "demo-retailer"
 DEFAULT_PROMOTION_ID = "demo-promotion"
+DEFAULT_CURRENCY = "USD"
+DEFAULT_TENANT_CONFIG_VERSION = "demo-v1"
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
 
@@ -218,6 +223,7 @@ TEXT = {
 
 CATALOG = [
     {
+        "catalog_product_id": "demo-heavy-cream",
         "name_en": "Heavy Cream",
         "name_zh": "鮮奶油",
         "category_en": "Dairy",
@@ -227,6 +233,7 @@ CATALOG = [
         "reason_zh": "讓番茄醬汁更滑順濃郁。",
     },
     {
+        "catalog_product_id": "demo-parmesan-cheese",
         "name_en": "Parmesan Cheese",
         "name_zh": "帕瑪森起司",
         "category_en": "Dairy",
@@ -236,6 +243,7 @@ CATALOG = [
         "reason_zh": "增加鹹香與堅果風味。",
     },
     {
+        "catalog_product_id": "demo-fresh-basil",
         "name_en": "Fresh Basil",
         "name_zh": "新鮮羅勒",
         "category_en": "Herbs",
@@ -245,6 +253,7 @@ CATALOG = [
         "reason_zh": "讓料理更清新有層次。",
     },
     {
+        "catalog_product_id": "demo-garlic",
         "name_en": "Garlic",
         "name_zh": "大蒜",
         "category_en": "Produce",
@@ -254,6 +263,7 @@ CATALOG = [
         "reason_zh": "建立料理的鹹香底味。",
     },
     {
+        "catalog_product_id": "demo-pasta",
         "name_en": "Pasta",
         "name_zh": "義大利麵",
         "category_en": "Pantry",
@@ -263,6 +273,7 @@ CATALOG = [
         "reason_zh": "把冰箱剩餘食材變成完整晚餐。",
     },
     {
+        "catalog_product_id": "demo-cherry-tomatoes",
         "name_en": "Cherry Tomatoes",
         "name_zh": "小番茄",
         "category_en": "Produce",
@@ -486,6 +497,12 @@ def read_attribution_config():
         "retailer_id": get_secret_or_env(("retailer_id",), RETAILER_ID_ENV_KEYS, DEFAULT_RETAILER_ID),
         "promotion_id": get_secret_or_env(("promotion_id",), PROMOTION_ID_ENV_KEYS, DEFAULT_PROMOTION_ID),
         "model_name": st.session_state.get("model_name", ""),
+        "currency": get_secret_or_env(("currency",), CURRENCY_ENV_KEYS, DEFAULT_CURRENCY),
+        "tenant_config_version": get_secret_or_env(
+            ("tenant_config_version",),
+            TENANT_CONFIG_VERSION_ENV_KEYS,
+            DEFAULT_TENANT_CONFIG_VERSION,
+        ),
     }
 
 
@@ -570,6 +587,7 @@ def track_recommended_products(source):
             {
                 "source": source,
                 "product_index": index,
+                "catalog_product_id": product.get("catalog_product_id", ""),
                 "product_name": product.get("name", ""),
                 "estimated_price": float(product.get("estimated_price", 0) or 0),
             },
@@ -581,6 +599,7 @@ def product_event_properties(product, quantity, previous_quantity=None):
     quantity = int(quantity or 0)
     price = float(product.get("estimated_price", 0) or 0)
     properties = {
+        "catalog_product_id": product.get("catalog_product_id", ""),
         "product_name": product.get("name", ""),
         "quantity": quantity,
         "estimated_price": price,
@@ -1105,10 +1124,31 @@ def catalog_prompt():
     rows = []
     for item in CATALOG:
         rows.append(
-            f"- {item[f'name_{suffix}']} / {item[f'category_{suffix}']} / "
+            f"- {item['catalog_product_id']} / {item[f'name_{suffix}']} / {item[f'category_{suffix}']} / "
             f"${item['price']:.2f} / {item[f'reason_{suffix}']}"
         )
     return "\n".join(rows)
+
+
+def catalog_item_for_product_name(name):
+    product_name = normalize_ingredient_name(name, display=False)
+    for item in CATALOG:
+        names = (
+            normalize_ingredient_name(item.get("name_en", ""), display=False),
+            normalize_ingredient_name(item.get("name_zh", ""), display=False),
+        )
+        if product_name in names:
+            return item
+    return None
+
+
+def enrich_recommended_product(product):
+    product = dict(product or {})
+    catalog_item = catalog_item_for_product_name(product.get("name", ""))
+    if catalog_item:
+        product.setdefault("catalog_product_id", catalog_item["catalog_product_id"])
+        product.setdefault("estimated_price", catalog_item["price"])
+    return product
 
 
 def clean_response(raw):
@@ -1177,7 +1217,7 @@ Return only valid JSON with this shape:
       "owned_ingredients": ["string"],
       "missing_items": ["string"],
       "recommended_products": [
-        {{"name": "string", "reason": "string", "estimated_price": 0}}
+        {{"catalog_product_id": "string", "name": "string", "reason": "string", "estimated_price": 0}}
       ],
       "recipe_steps": ["string"],
       "cart_summary": {{"item_count": 0, "estimated_total": 0}}
@@ -1246,6 +1286,9 @@ def recipe_options(plan):
         merged["owned_ingredients"] = merged.get("owned_ingredients") or base["owned_ingredients"]
         merged["missing_items"] = merged.get("missing_items") or base["missing_items"]
         merged["recommended_products"] = merged.get("recommended_products") or base["recommended_products"]
+        merged["recommended_products"] = [
+            enrich_recommended_product(product) for product in merged["recommended_products"]
+        ]
         merged["recipe_steps"] = merged.get("recipe_steps") or base["recipe_steps"]
         merged["chef_note"] = merged.get("chef_note") or merged.get("reasoning_summary") or base.get("chef_note", "")
         normalized.append(merged)
@@ -1379,6 +1422,7 @@ def generate_recipe(runtime_config, business_goal):
     if not ingredients:
         st.warning(tr("need_ingredients"))
         return
+    started_at = time.perf_counter()
     if runtime_config["ready"]:
         try:
             with st.spinner(tr("model_generating")):
@@ -1392,7 +1436,12 @@ def generate_recipe(runtime_config, business_goal):
             st.session_state["status"] = tr("generated_by_model")
             track_event(
                 "recipe_generated",
-                {"source": "model", "recipe_count": len(recipe_options(st.session_state.get("plan")))},
+                {
+                    "source": "model",
+                    "recipe_count": len(recipe_options(st.session_state.get("plan"))),
+                    "recipe_generation_latency_ms": int((time.perf_counter() - started_at) * 1000),
+                    "estimated_request_count": 1,
+                },
             )
             track_recommended_products("model")
             return
@@ -1406,7 +1455,12 @@ def generate_recipe(runtime_config, business_goal):
     st.session_state["status"] = tr("fallback_recipe")
     track_event(
         "recipe_generated",
-        {"source": "fallback", "recipe_count": len(recipe_options(st.session_state.get("plan")))},
+        {
+            "source": "fallback",
+            "recipe_count": len(recipe_options(st.session_state.get("plan"))),
+            "recipe_generation_latency_ms": int((time.perf_counter() - started_at) * 1000),
+            "estimated_request_count": 1 if runtime_config["ready"] else 0,
+        },
     )
     track_recommended_products("fallback")
 
@@ -1430,6 +1484,7 @@ def render_scan(runtime_config):
             st.warning(tr("fallback_photo"))
         else:
             try:
+                started_at = time.perf_counter()
                 with st.spinner(tr("model_recognizing")):
                     ingredients = recognize_ingredients(runtime_config["api_key"], runtime_config["model"], photo.getvalue())
                 st.session_state["ingredients"] = ingredients
@@ -1437,7 +1492,15 @@ def render_scan(runtime_config):
                 st.session_state["plan"] = None
                 st.session_state["selected_recipe_index"] = 0
                 st.session_state["status"] = tr("recognized_by_model")
-                track_event("ingredient_detected", {"source": "photo", "ingredient_count": len(ingredients)})
+                track_event(
+                    "ingredient_detected",
+                    {
+                        "source": "photo",
+                        "ingredient_count": len(ingredients),
+                        "photo_recognition_latency_ms": int((time.perf_counter() - started_at) * 1000),
+                        "estimated_request_count": 1,
+                    },
+                )
                 st.success(tr("photo_recognized_review"))
             except Exception as exc:
                 logging.exception("Photo recognition failed")

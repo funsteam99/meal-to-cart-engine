@@ -335,11 +335,13 @@ Recommended first page layout:
 | Recipe-to-checkout rate | Checkout sessions divided by recipe sessions |
 | Mock order conversion rate | Order sessions divided by sessions |
 
-## Event Gaps To Close Next
+## Event Fields Added For PoC Attribution
 
-For a stronger retailer PoC, add these events or fields after the first dashboard is live:
+The app now emits these fields in `properties_json` for stronger retailer PoC analysis:
 
 - `recipe_generation_latency_ms`: tracks AI performance and cost impact
+- `photo_recognition_latency_ms`: tracks fridge photo recognition performance
+- `estimated_request_count`: tracks directional AI request volume
 - `currency`: separates demo markets once non-USD mock prices are introduced
 - `tenant_config_version`: tracks which retailer catalog and campaign rules generated recommendations
 - `catalog_product_id`: links recommended products to a real retailer SKU once catalog integration starts

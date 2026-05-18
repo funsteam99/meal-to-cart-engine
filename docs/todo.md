@@ -28,8 +28,8 @@ This checklist summarizes the current project status and next work items from th
 ## Immediate QA
 
 - [x] Open the deployed Cloud Run app.
-- [ ] Switch the UI language to Traditional Chinese.
-- [ ] Open the Admin tab and confirm all labels are localized.
+- [x] Switch the UI language to Traditional Chinese.
+- [x] Open the Admin tab and confirm all labels are localized.
 - [ ] Run a full demo flow:
   - enter ingredients
   - generate recipes
@@ -37,7 +37,7 @@ This checklist summarizes the current project status and next work items from th
   - adjust cart quantities
   - place a mock order
   - return to Admin
-- [ ] Confirm the mock order confirmation card appears after checkout.
+- [x] Confirm the mock order confirmation card appears after checkout.
 - [x] Confirm Top ingredients groups duplicate casing correctly.
 - [x] Confirm Admin metrics update after the flow.
 

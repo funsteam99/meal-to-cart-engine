@@ -63,9 +63,13 @@ Eggs
 
 ## Remaining Visual QA
 
+Visual browser confirmation was provided by screenshot for:
+
+- Traditional Chinese UI labels in the main app shell.
+- Traditional Chinese cart tab.
+- Mock order confirmation card after checkout.
+- Confirmation card order metrics: item count, order total, order ID, and line items.
+
 These still require visual browser confirmation:
 
-- Switch UI language to Traditional Chinese.
-- Open the Admin tab and confirm labels render localized in the browser.
-- Confirm the mock order confirmation card appears after checkout.
 - Confirm the full flow includes selecting a recipe and returning to Admin.

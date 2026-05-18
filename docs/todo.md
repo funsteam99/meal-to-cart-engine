@@ -65,11 +65,11 @@ This checklist summarizes the current project status and next work items from th
 
 ## Demo Readiness
 
-- [ ] Prepare a stable demo script.
-- [ ] Choose fixed demo ingredients.
-- [ ] Prepare a short retailer-facing talk track.
-- [ ] Avoid showing PowerShell for Chinese files during demo.
-- [ ] Use GitHub, VS Code, browser, or Streamlit UI for Chinese content.
+- [x] Prepare a stable demo script.
+- [x] Choose fixed demo ingredients.
+- [x] Prepare a short retailer-facing talk track.
+- [x] Avoid showing PowerShell for Chinese files during demo.
+- [x] Use GitHub, VS Code, browser, or Streamlit UI for Chinese content.
 - [ ] Check whether any non-Admin Chinese UI text still appears garbled.
 
 ## Next Product Work

@@ -109,8 +109,8 @@ This checklist summarizes the current project status and next work items from th
   - Funnel
   - Product Performance
   - Ingredient and Meal Insights
-- [ ] Validate SQL against BigQuery production events.
-- [ ] Decide whether in-app Admin remains enough for first demo or Looker Studio is required.
+- [x] Validate SQL against BigQuery production events.
+- [x] Decide whether in-app Admin remains enough for first demo or Looker Studio is required.
 
 ## Future Integration
 

@@ -62,6 +62,8 @@ This checklist summarizes the current project status and next work items from th
   - `recipe_generation_latency_ms`
   - `photo_recognition_latency_ms`
   - `estimated_request_count`
+  - `category` where relevant
+  - `promotion_label` where relevant
 
 ## Demo Readiness
 

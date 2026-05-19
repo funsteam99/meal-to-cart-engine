@@ -1,4 +1,4 @@
-# Freshwise 商業模式
+﻿# Freshwise 商業模式
 
 Freshwise 比較適合定位成 B2B / B2B2C 的「AI meal-to-cart 轉換引擎」，而不是單純賣給一般使用者的食譜 app。
 

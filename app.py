@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -33,6 +34,8 @@ DEFAULT_RETAILER_ID = "demo-retailer"
 DEFAULT_PROMOTION_ID = "demo-promotion"
 DEFAULT_CURRENCY = "USD"
 DEFAULT_TENANT_CONFIG_VERSION = "demo-v1"
+GEMINI_TIMEOUT_SECONDS = 45
+GEMINI_RETRY_TIMEOUT_SECONDS = 75
 
 LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
 
@@ -41,6 +44,15 @@ TEXT = {
         "app_title": "Freshwise",
         "tagline": "See it. Cook it. Love it.",
         "subtitle": "Identify fridge ingredients, generate a recipe, and order what is missing.",
+        "journey_title": "Tonight's meal-to-cart path",
+        "journey_subtitle": "Start with ingredients, choose dinner, then review the missing items.",
+        "step_ingredients": "Ingredients",
+        "step_recipes": "Pick dinner",
+        "step_cart": "Missing items",
+        "step_done": "Order",
+        "step_ready": "Ready",
+        "step_current": "Now",
+        "step_waiting": "Next",
         "language": "Language",
         "settings": "Settings",
         "model_ready": "Model connected",
@@ -57,6 +69,10 @@ TEXT = {
         "recipe": "Recipe",
         "cart": "Cart",
         "admin": "Admin",
+        "start_with_ingredients": "Start with what you have",
+        "start_with_ingredients_hint": "Type the ingredients you can see. A fridge photo is useful too, but manual entry keeps the demo moving.",
+        "photo_beta": "Photo scan",
+        "manual_first": "Fast path",
         "camera": "Take a fridge photo",
         "recognize_photo": "Recognize Photo",
         "photo_hint": "On mobile, this opens the camera or photo picker.",
@@ -66,14 +82,18 @@ TEXT = {
         "use_demo": "Use Demo Ingredients",
         "detected": "Detected ingredients",
         "no_ingredients": "No ingredients yet. Take a photo or enter ingredients manually.",
-        "no_recipe": "No recipes yet. Scan or enter ingredients, then generate recipes.",
-        "no_cart": "No cart yet. Generate recipes and choose one to see missing ingredients.",
+        "no_recipe": "Add ingredients first, then generate three dinner options.",
+        "no_cart": "Choose a recipe first, then review the missing items.",
+        "empty_ingredients_title": "Tell Freshwise what is already in the kitchen.",
+        "empty_recipe_title": "Your dinner options will appear here.",
+        "empty_cart_title": "Missing items will turn into a mock cart.",
         "add_ingredient": "Add ingredient",
         "add": "Add",
         "remove": "Remove",
         "generate_recipe": "Generate Recipe",
         "regenerate": "Regenerate Recipe",
         "recipe_options": "Recipe options",
+        "choose_recipe_hint": "Compare the options by effort, missing items, and basket impact.",
         "use_this_recipe": "Use this recipe",
         "current_recipe": "Current recipe",
         "model_generating": "Calling the configured multimodal model...",
@@ -90,6 +110,9 @@ TEXT = {
         "missing": "Missing",
         "steps": "Steps",
         "recommended_products": "Recommended products",
+        "missing_cart_title": "Items to complete this meal",
+        "missing_cart_hint": "Adjust the recommended products before placing a mock order.",
+        "product_reason": "Why it is here",
         "qty": "Qty",
         "subtotal": "Subtotal",
         "delivery": "Delivery",
@@ -110,6 +133,7 @@ TEXT = {
         "recognized_results": "Recognized results",
         "local_demo": "Local demo",
         "admin_title": "PoC dashboard",
+        "admin_poc_only": "Retailer-facing analytics. Keep this out of the shopper flow during demos.",
         "admin_disabled": "Analytics is not enabled for this environment.",
         "admin_empty": "No analytics events yet. Run through the meal-to-cart flow, then refresh this dashboard.",
         "admin_refresh": "Refresh dashboard",
@@ -132,6 +156,15 @@ TEXT = {
         "app_title": "Freshwise",
         "tagline": "看見食材，做成料理，喜歡上晚餐。",
         "subtitle": "辨識冰箱食材、生成食譜，並把缺少的食材加入購物車。",
+        "journey_title": "今晚的 meal-to-cart 流程",
+        "journey_subtitle": "先確認食材，再選料理，最後檢查缺少商品。",
+        "step_ingredients": "食材",
+        "step_recipes": "選料理",
+        "step_cart": "補缺料",
+        "step_done": "訂單",
+        "step_ready": "完成",
+        "step_current": "目前",
+        "step_waiting": "下一步",
         "language": "語言",
         "settings": "設定",
         "model_ready": "模型已連線",
@@ -147,6 +180,10 @@ TEXT = {
         "ingredients": "食材",
         "recipe": "食譜",
         "cart": "購物車",
+        "start_with_ingredients": "先輸入你已有的食材",
+        "start_with_ingredients_hint": "直接輸入看得到的食材。照片辨識也可用，但手動輸入最適合穩定 demo。",
+        "photo_beta": "照片辨識",
+        "manual_first": "快速流程",
         "camera": "拍攝冰箱照片",
         "recognize_photo": "辨識照片",
         "photo_hint": "手機上會開啟相機或相簿。",
@@ -156,14 +193,18 @@ TEXT = {
         "use_demo": "使用範例食材",
         "detected": "已辨識食材",
         "no_ingredients": "目前沒有食材。請拍照或手動輸入。",
-        "no_recipe": "目前還沒有食譜。請先拍照或輸入食材，再生成食譜。",
-        "no_cart": "目前還沒有購物車。請先生成食譜並選擇一道料理。",
+        "no_recipe": "請先加入食材，再生成三個晚餐選項。",
+        "no_cart": "請先選擇一道料理，再查看缺少商品。",
+        "empty_ingredients_title": "告訴 Freshwise 廚房裡已經有什麼。",
+        "empty_recipe_title": "晚餐選項會顯示在這裡。",
+        "empty_cart_title": "缺少食材會變成模擬購物車。",
         "add_ingredient": "新增食材",
         "add": "新增",
         "remove": "移除",
         "generate_recipe": "生成食譜",
         "regenerate": "重新生成食譜",
         "recipe_options": "食譜選項",
+        "choose_recipe_hint": "用缺少品項、購物金額與料理方向快速比較。",
         "use_this_recipe": "使用這道料理",
         "current_recipe": "目前料理",
         "model_generating": "正在呼叫設定的多模態模型...",
@@ -180,6 +221,9 @@ TEXT = {
         "missing": "缺少食材",
         "steps": "料理步驟",
         "recommended_products": "推薦商品",
+        "missing_cart_title": "完成這道料理還缺這些",
+        "missing_cart_hint": "送出模擬訂單前，可以先調整推薦商品數量。",
+        "product_reason": "推薦原因",
         "qty": "數量",
         "subtotal": "小計",
         "delivery": "配送費",
@@ -201,6 +245,7 @@ TEXT = {
         "local_demo": "本地範例",
         "admin": "管理",
         "admin_title": "PoC 儀表板",
+        "admin_poc_only": "零售商分析頁。展示使用者流程時可先略過。",
         "admin_disabled": "此環境尚未啟用分析。",
         "admin_empty": "目前還沒有分析事件。請先跑一次 meal-to-cart 流程，再刷新儀表板。",
         "admin_refresh": "刷新儀表板",
@@ -1013,6 +1058,99 @@ def css():
             font-size: 15px;
             line-height: 1.5;
         }
+        .journey {
+            margin: 14px 0 2px;
+            padding: 14px;
+            border: 1px solid var(--fw-border);
+            border-radius: 20px;
+            background: rgba(255, 253, 247, .88);
+        }
+        .journey-title {
+            margin: 0;
+            color: var(--fw-ink-strong);
+            font-size: 15px;
+            font-weight: 900;
+        }
+        .journey-subtitle {
+            margin: 4px 0 12px;
+            color: var(--fw-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .journey-steps {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .journey-step {
+            min-height: 76px;
+            padding: 10px;
+            border: 1px solid var(--fw-border);
+            border-radius: 16px;
+            background: var(--fw-surface);
+        }
+        .journey-step.done {
+            background: var(--fw-surface-soft);
+        }
+        .journey-step.active {
+            border-color: var(--fw-primary);
+            box-shadow: 0 10px 22px rgba(47, 123, 63, .14);
+        }
+        .journey-step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            background: var(--fw-control);
+            color: var(--fw-ink-strong);
+            font-size: 12px;
+            font-weight: 900;
+        }
+        .journey-step.active .journey-step-number {
+            color: var(--fw-on-primary);
+            background: var(--fw-primary);
+        }
+        .journey-step-label {
+            margin: 8px 0 2px;
+            color: var(--fw-ink-strong);
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+        .journey-step-status {
+            margin: 0;
+            color: var(--fw-muted);
+            font-size: 12px;
+            line-height: 1.25;
+        }
+        .section-kicker {
+            margin: 0 0 4px;
+            color: var(--fw-primary-dark);
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+        .empty-state {
+            padding: 18px;
+            border: 1px dashed rgba(31, 111, 56, .38);
+            border-radius: 18px;
+            background: rgba(238, 248, 230, .65);
+        }
+        .empty-title {
+            margin: 0 0 4px;
+            color: var(--fw-ink-strong);
+            font-size: 16px;
+            font-weight: 900;
+        }
+        .empty-copy {
+            margin: 0;
+            color: var(--fw-muted);
+            font-size: 14px;
+            line-height: 1.45;
+        }
         .card {
             padding: 16px;
             border: 1px solid var(--fw-border);
@@ -1042,6 +1180,47 @@ def css():
             color: var(--fw-muted);
             font-size: 14px;
             line-height: 1.45;
+        }
+        .recipe-option-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .mini-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: var(--fw-control);
+            color: var(--fw-ink-strong);
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .product-card {
+            margin: 12px 0 6px;
+            padding: 14px;
+            border: 1px solid var(--fw-border);
+            border-radius: 18px;
+            background: var(--fw-surface);
+        }
+        .product-name {
+            margin: 0;
+            color: var(--fw-ink-strong);
+            font-size: 16px;
+            font-weight: 900;
+        }
+        .product-meta {
+            margin: 5px 0 0;
+            color: var(--fw-muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .product-price {
+            color: var(--fw-primary-dark);
+            font-weight: 900;
         }
         .ingredient-strip {
             margin: 0 0 14px;
@@ -1106,6 +1285,9 @@ def css():
             display: none;
         }
         @media (max-width: 430px) {
+            .journey-steps {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
             div[data-testid="stTabs"] div[role="tablist"] {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
@@ -1188,18 +1370,31 @@ def css():
 
 def read_runtime_config():
     api_key = get_secret_or_env(("api_key",), API_KEY_ENV_KEYS)
-    model = get_secret_or_env(MODEL_SECRET_KEYS, MODEL_ENV_KEYS)
+    configured_model = get_secret_or_env(MODEL_SECRET_KEYS, MODEL_ENV_KEYS)
+    model = normalize_gemini_model_name(configured_model)
     if model:
         st.session_state["model_name"] = model
 
     missing = []
     if not api_key:
         missing.append("api_key/GOOGLE_API_KEY")
-    if not model:
+    if not configured_model:
         missing.append("default_model/model/DEFAULT_MODEL")
     if missing:
         return {"ready": False, "api_key": "", "model": "", "error": tr("missing_secrets", items=", ".join(missing))}
     return {"ready": True, "api_key": api_key, "model": model, "error": ""}
+
+
+def normalize_gemini_model_name(model):
+    value = (model or "").strip()
+    if not value:
+        return ""
+    value = value.split("?", 1)[0].split(":generateContent", 1)[0].strip("/")
+    if value.startswith(GEMINI_API_BASE_URL):
+        value = value.removeprefix(GEMINI_API_BASE_URL).strip("/")
+    if value.startswith("models/"):
+        value = value.removeprefix("models/")
+    return value
 
 
 def parse_ingredients(text):
@@ -1256,7 +1451,7 @@ def extract_json(raw):
 
 
 def call_gemini(api_key, model, user_parts, system_prompt):
-    model_path = urllib.parse.quote(model, safe="")
+    model_path = urllib.parse.quote(normalize_gemini_model_name(model), safe="")
     url = f"{GEMINI_API_BASE_URL}/models/{model_path}:generateContent?key={urllib.parse.quote(api_key)}"
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -1269,14 +1464,34 @@ def call_gemini(api_key, model, user_parts, system_prompt):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Gemini connection failed: {exc.reason}") from exc
+    data = None
+    timeouts = (GEMINI_TIMEOUT_SECONDS, GEMINI_RETRY_TIMEOUT_SECONDS)
+    for attempt, timeout_seconds in enumerate(timeouts, start=1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except (TimeoutError, socket.timeout) as exc:
+            if attempt == len(timeouts):
+                raise RuntimeError(
+                    f"Gemini request timed out after {timeout_seconds} seconds. "
+                    "Freshwise switched to the local demo plan so the meal-to-cart flow can continue."
+                ) from exc
+            logging.warning("Gemini request timed out after %s seconds; retrying once.", timeout_seconds)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Gemini HTTP {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            if isinstance(reason, TimeoutError) or isinstance(reason, socket.timeout):
+                if attempt == len(timeouts):
+                    raise RuntimeError(
+                        f"Gemini request timed out after {timeout_seconds} seconds. "
+                        "Freshwise switched to the local demo plan so the meal-to-cart flow can continue."
+                    ) from exc
+                logging.warning("Gemini connection timed out after %s seconds; retrying once.", timeout_seconds)
+                continue
+            raise RuntimeError(f"Gemini connection failed: {reason}") from exc
 
     parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
     text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
@@ -1451,8 +1666,13 @@ def render_order_confirmation():
             st.dataframe(order["items"], hide_index=True, use_container_width=True)
 
 
+def clear_order_state():
+    st.session_state.pop("last_mock_order", None)
+
+
 def set_demo():
     ingredients = parse_ingredients(DEMO_INGREDIENTS[lang()])
+    clear_order_state()
     st.session_state["ingredients"] = ingredients
     st.session_state["manual_text"] = DEMO_INGREDIENTS[lang()]
     st.session_state["plan"] = fallback_plan(ingredients)
@@ -1487,6 +1707,16 @@ def render_selected_ingredients():
 
 def format_model_error(exc):
     detail = str(exc)
+    if "timed out" in detail or "read operation timed out" in detail:
+        return (
+            "Gemini took too long to respond. Freshwise kept the demo moving with a local recipe plan; "
+            "try regenerating in a moment."
+        )
+    if "unexpected model name format" in detail or "GenerateContentRequest.model" in detail:
+        return (
+            "Gemini model name format is invalid. Use a model id such as "
+            "gemini-2.5-flash or models/gemini-2.5-flash; Freshwise will normalize it before calling Gemini."
+        )
     if "SERVICE_DISABLED" in detail or "Gemini API has not been used" in detail:
         return (
             "Gemini API is disabled for this Google Cloud project. Enable it here: "
@@ -1512,6 +1742,7 @@ def generate_recipe(runtime_config, business_goal):
     if not ingredients:
         st.warning(tr("need_ingredients"))
         return
+    clear_order_state()
     started_at = time.perf_counter()
     if runtime_config["ready"]:
         try:
@@ -1566,10 +1797,88 @@ def render_header():
     )
 
 
+def render_empty_state(title, copy):
+    st.html(
+        f"""
+        <div class="empty-state">
+            <p class="empty-title">{html.escape(title)}</p>
+            <p class="empty-copy">{html.escape(copy)}</p>
+        </div>
+        """
+    )
+
+
+def render_journey():
+    has_ingredients = bool(st.session_state.get("ingredients"))
+    recipes = recipe_options(st.session_state.get("plan"))
+    has_recipe = bool(recipes)
+    has_order = bool(st.session_state.get("last_mock_order"))
+    if has_order:
+        active_index = 3
+    elif has_recipe:
+        active_index = 2
+    elif has_ingredients:
+        active_index = 1
+    else:
+        active_index = 0
+
+    steps = [
+        (tr("step_ingredients"), has_ingredients),
+        (tr("step_recipes"), has_recipe),
+        (tr("step_cart"), has_recipe),
+        (tr("step_done"), has_order),
+    ]
+    step_html = []
+    for index, (label, done) in enumerate(steps):
+        state = "active" if index == active_index else "done" if done else ""
+        status = tr("step_current") if index == active_index else tr("step_ready") if done else tr("step_waiting")
+        step_html.append(
+            f"""
+            <div class="journey-step {state}">
+                <span class="journey-step-number">{index + 1}</span>
+                <p class="journey-step-label">{html.escape(label)}</p>
+                <p class="journey-step-status">{html.escape(status)}</p>
+            </div>
+            """
+        )
+    st.html(
+        f"""
+        <div class="journey">
+            <p class="journey-title">{html.escape(tr("journey_title"))}</p>
+            <p class="journey-subtitle">{html.escape(tr("journey_subtitle"))}</p>
+            <div class="journey-steps">{''.join(step_html)}</div>
+        </div>
+        """
+    )
+
+
 def render_scan(runtime_config):
-    st.subheader(tr("scan"))
+    st.markdown(f'<p class="section-kicker">{html.escape(tr("manual_first"))}</p>', unsafe_allow_html=True)
+    st.subheader(tr("start_with_ingredients"))
+    st.caption(tr("start_with_ingredients_hint"))
+    manual = st.text_area(
+        tr("manual_input"),
+        placeholder=tr("manual_placeholder"),
+        key="manual_text",
+    )
+    col1, col2 = st.columns(2)
+    if col1.button(tr("use_manual"), use_container_width=True):
+        ingredients = parse_ingredients(manual)
+        if ingredients:
+            clear_order_state()
+            st.session_state["ingredients"] = ingredients
+            st.session_state["plan"] = None
+            st.session_state["selected_recipe_index"] = 0
+            track_event("ingredients_updated", {"source": "manual", "ingredient_count": len(ingredients)})
+            st.success(tr("ingredients_updated"))
+        else:
+            st.warning(tr("need_ingredients"))
+    col2.button(tr("use_demo"), use_container_width=True, on_click=set_demo)
+
+    st.markdown("---")
+    st.markdown(f'<p class="section-kicker">{html.escape(tr("photo_beta"))}</p>', unsafe_allow_html=True)
     photo = st.camera_input(tr("camera"), help=tr("photo_hint"))
-    if st.button(tr("recognize_photo"), type="primary", use_container_width=True, disabled=photo is None):
+    if st.button(tr("recognize_photo"), use_container_width=True, disabled=photo is None):
         if not runtime_config["ready"]:
             st.warning(tr("fallback_photo"))
         else:
@@ -1577,6 +1886,7 @@ def render_scan(runtime_config):
                 started_at = time.perf_counter()
                 with st.spinner(tr("model_recognizing")):
                     ingredients = recognize_ingredients(runtime_config["api_key"], runtime_config["model"], photo.getvalue())
+                clear_order_state()
                 st.session_state["ingredients"] = ingredients
                 st.session_state["manual_text"] = ingredients_to_text(ingredients)
                 st.session_state["plan"] = None
@@ -1596,35 +1906,17 @@ def render_scan(runtime_config):
                 logging.exception("Photo recognition failed")
                 st.warning(f"{tr('fallback_photo')} ({format_model_error(exc)})")
 
-    st.markdown("---")
-    manual = st.text_area(
-        tr("manual_input"),
-        placeholder=tr("manual_placeholder"),
-        key="manual_text",
-    )
-    col1, col2 = st.columns(2)
-    if col1.button(tr("use_manual"), use_container_width=True):
-        ingredients = parse_ingredients(manual)
-        if ingredients:
-            st.session_state["ingredients"] = ingredients
-            st.session_state["plan"] = None
-            st.session_state["selected_recipe_index"] = 0
-            track_event("ingredients_updated", {"source": "manual", "ingredient_count": len(ingredients)})
-            st.success(tr("ingredients_updated"))
-        else:
-            st.warning(tr("need_ingredients"))
-    col2.button(tr("use_demo"), use_container_width=True, on_click=set_demo)
-
 
 def render_ingredients():
     st.subheader(tr("detected"))
     ingredients = st.session_state.get("ingredients", [])
     if not ingredients:
-        st.info(tr("no_ingredients"))
+        render_empty_state(tr("empty_ingredients_title"), tr("no_ingredients"))
     for index, ingredient in enumerate(list(ingredients)):
         col1, col2 = st.columns([3, 1])
         col1.write(f"**{ingredient}**")
         if col2.button(tr("remove"), key=f"remove_{index}", use_container_width=True):
+            clear_order_state()
             ingredients.pop(index)
             st.session_state["ingredients"] = ingredients
             st.session_state["plan"] = None
@@ -1636,6 +1928,7 @@ def render_ingredients():
     if st.button(tr("add"), use_container_width=True):
         value = normalize_ingredient_name(new_item)
         if value:
+            clear_order_state()
             st.session_state["ingredients"] = normalize_ingredients([*ingredients, value])
             st.session_state["plan"] = None
             st.session_state["selected_recipe_index"] = 0
@@ -1646,31 +1939,47 @@ def render_ingredients():
             st.rerun()
 
 
+def recipe_option_html(index, recipe, selected):
+    selected_class = " selected" if selected else ""
+    products = recipe.get("recommended_products", [])
+    count = len(products)
+    subtotal = sum(float(product.get("estimated_price", 0) or 0) for product in products)
+    meta = [
+        f'{tr("uses")}: {len(recipe.get("owned_ingredients", []))}',
+        f'{tr("missing")}: {len(recipe.get("missing_items", []))}',
+        f'{tr("recommended_products")}: {count}',
+        money(subtotal),
+    ]
+    pills = "".join(f'<span class="mini-pill">{html.escape(str(item))}</span>' for item in meta)
+    return f"""
+        <div class="recipe-option{selected_class}">
+            <p class="recipe-option-title">{index + 1}. {html.escape(str(recipe.get("meal_title", "")))}</p>
+            <p class="recipe-option-copy">{html.escape(str(recipe.get("reasoning_summary", "")))}</p>
+            <div class="recipe-option-meta">{pills}</div>
+        </div>
+        """
+
+
 def render_recipe(runtime_config, business_goal):
     st.subheader(tr("recipe"))
     render_selected_ingredients()
-    if st.button(tr("generate_recipe"), type="primary", use_container_width=True):
+    button_label = tr("regenerate") if recipe_options(st.session_state.get("plan")) else tr("generate_recipe")
+    if st.button(button_label, type="primary", use_container_width=True):
         generate_recipe(runtime_config, business_goal)
 
     recipes = recipe_options(st.session_state.get("plan"))
     if not recipes:
-        st.info(tr("no_recipe"))
+        render_empty_state(tr("empty_recipe_title"), tr("no_recipe"))
         return
 
     st.markdown(f"#### {tr('recipe_options')}")
+    st.caption(tr("choose_recipe_hint"))
     for index, recipe in enumerate(recipes):
         selected = index == st.session_state.get("selected_recipe_index", 0)
-        selected_class = " selected" if selected else ""
-        st.html(
-            f"""
-            <div class="recipe-option{selected_class}">
-                <p class="recipe-option-title">{index + 1}. {recipe.get("meal_title", "")}</p>
-                <p class="recipe-option-copy">{recipe.get("reasoning_summary", "")}</p>
-            </div>
-            """
-        )
+        st.html(recipe_option_html(index, recipe, selected))
         label = tr("current_recipe") if selected else tr("use_this_recipe")
         if st.button(label, key=f"select_recipe_{index}", use_container_width=True, disabled=selected):
+            clear_order_state()
             st.session_state["selected_recipe_index"] = index
             sync_cart(recipe)
             track_event("recipe_selected", {"recipe_index": index}, recipe)
@@ -1703,7 +2012,7 @@ def render_cart():
     st.subheader(tr("cart"))
     plan = normalize_plan(st.session_state.get("plan"))
     if not plan:
-        st.info(tr("no_cart"))
+        render_empty_state(tr("empty_cart_title"), tr("no_cart"))
         return
     render_order_confirmation()
     sync_cart(plan)
@@ -1712,21 +2021,36 @@ def render_cart():
         st.info(tr("all_set"))
         return
 
+    st.markdown(f"#### {tr('missing_cart_title')}")
+    st.caption(tr("missing_cart_hint"))
     for product in products:
         name = product.get("name", "")
         price = float(product.get("estimated_price", 0) or 0)
-        st.markdown(f"**{name}**  {money(price)}")
-        st.caption(product.get("reason", ""))
+        category = product.get("category", "")
+        promotion = product.get("promotion_label", "")
+        reason = product.get("reason", "")
+        details = " · ".join(value for value in [category, promotion] if value)
+        st.html(
+            f"""
+            <div class="product-card">
+                <p class="product-name">{html.escape(str(name))} <span class="product-price">{money(price)}</span></p>
+                <p class="product-meta">{html.escape(details)}</p>
+                <p class="product-meta"><strong>{html.escape(tr("product_reason"))}:</strong> {html.escape(str(reason))}</p>
+            </div>
+            """
+        )
         c1, c2, c3 = st.columns([1, 1, 1])
         qty = int(st.session_state["cart_quantities"].get(name, 1))
         if c1.button("-", key=f"minus_{name}", use_container_width=True, disabled=qty <= 0):
             next_qty = max(0, qty - 1)
+            clear_order_state()
             st.session_state["cart_quantities"][name] = next_qty
             track_product_quantity_change(product, qty, next_qty, plan)
             st.rerun()
         c2.metric(tr("qty"), qty)
         if c3.button("+", key=f"plus_{name}", use_container_width=True):
             next_qty = qty + 1
+            clear_order_state()
             st.session_state["cart_quantities"][name] = next_qty
             track_product_quantity_change(product, qty, next_qty, plan)
             st.rerun()
@@ -1740,6 +2064,7 @@ def render_cart():
 
     col1, col2 = st.columns(2)
     if col1.button(tr("clear_cart"), use_container_width=True):
+        clear_order_state()
         for product in products:
             name = product.get("name", "")
             previous_qty = int(st.session_state["cart_quantities"].get(name, 0) or 0)
@@ -1749,6 +2074,7 @@ def render_cart():
         track_event("cart_cleared", {}, plan)
         st.rerun()
     if col2.button(tr("reset_qty"), use_container_width=True):
+        clear_order_state()
         for product in products:
             name = product.get("name", "")
             previous_qty = int(st.session_state["cart_quantities"].get(name, 0) or 0)
@@ -1798,6 +2124,7 @@ def render_settings(runtime_config):
 
 def render_admin():
     st.subheader(tr("admin_title"))
+    st.caption(tr("admin_poc_only"))
     st.caption(tr("admin_window"))
     event_config = read_event_config()
     if not event_config["enabled"]:
@@ -1895,35 +2222,24 @@ def main():
 
     render_header()
     runtime_config = read_runtime_config()
+    render_journey()
 
     scan_tab, ingredients_tab, recipe_tab, cart_tab, admin_tab, settings_tab = st.tabs(
         [tr("scan"), tr("ingredients"), tr("recipe"), tr("cart"), tr("admin"), tr("settings")]
     )
 
     with scan_tab:
-        st.html('<div class="card">')
         render_scan(runtime_config)
-        st.html("</div>")
     with ingredients_tab:
-        st.html('<div class="card">')
         render_ingredients()
-        st.html("</div>")
     with recipe_tab:
-        st.html('<div class="card">')
         render_recipe(runtime_config, st.session_state.get("business_goal", tr("goal_options")[0]))
-        st.html("</div>")
     with cart_tab:
-        st.html('<div class="card">')
         render_cart()
-        st.html("</div>")
     with admin_tab:
-        st.html('<div class="card">')
         render_admin()
-        st.html("</div>")
     with settings_tab:
-        st.html('<div class="card">')
         render_settings(runtime_config)
-        st.html("</div>")
 
 
 main()

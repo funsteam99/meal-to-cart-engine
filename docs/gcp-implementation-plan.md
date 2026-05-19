@@ -1,4 +1,4 @@
-# Freshwise GCP Implementation Plan
+﻿# Freshwise GCP Implementation Plan
 
 ## 目標
 

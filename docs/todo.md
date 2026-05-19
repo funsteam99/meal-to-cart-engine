@@ -5,6 +5,17 @@ This checklist summarizes the current project status and next work items from th
 ## Completed
 
 - Cloud Run redeployed to revision `freshwise-00008-zmz`.
+- Cloud Run redeployed to revision `freshwise-00009-ghp`.
+- Shopper UX improved:
+  - meal-to-cart journey stepper added
+  - manual ingredient entry made the primary fast path
+  - recipe options now show comparison metadata
+  - cart copy reframed as missing items to complete the meal
+  - Admin tab marked as retailer-facing PoC analytics
+- Gemini configuration updated to `gemini-2.5-flash`.
+- Gemini model name normalization added for `gemini-*`, `models/gemini-*`, and full API path formats.
+- Gemini timeout handling improved with one retry and user-friendly fallback copy.
+- Markdown files with Chinese content saved as UTF-8 with BOM for Windows PowerShell compatibility.
 - Admin page Traditional Chinese labels added and deployed.
 - BigQuery analytics event logging added.
 - Product-level analytics events added:
@@ -28,6 +39,9 @@ This checklist summarizes the current project status and next work items from th
 ## Immediate QA
 
 - [x] Open the deployed Cloud Run app.
+- [x] Confirm deployed revision `freshwise-00009-ghp` serves 100% of traffic.
+- [x] Confirm Cloud Run uses `DEFAULT_MODEL=gemini-2.5-flash`.
+- [x] Confirm `GOOGLE_API_KEY` is mounted from Secret Manager `freshwise-google-api-key:latest`.
 - [x] Switch the UI language to Traditional Chinese.
 - [x] Open the Admin tab and confirm all labels are localized.
 - [x] Run a full demo flow:
@@ -40,6 +54,7 @@ This checklist summarizes the current project status and next work items from th
 - [x] Confirm the mock order confirmation card appears after checkout.
 - [x] Confirm Top ingredients groups duplicate casing correctly.
 - [x] Confirm Admin metrics update after the flow.
+- [x] Confirm deployed GCP URL can generate recipes with the configured Gemini model.
 
 ## Analytics Verification
 
@@ -70,7 +85,7 @@ This checklist summarizes the current project status and next work items from th
 - [x] Prepare a stable demo script.
 - [x] Choose fixed demo ingredients.
 - [x] Prepare a short retailer-facing talk track.
-- [x] Avoid showing PowerShell for Chinese files during demo.
+- [x] Fix PowerShell Chinese Markdown display by saving Chinese Markdown as UTF-8 with BOM.
 - [x] Use GitHub, VS Code, browser, or Streamlit UI for Chinese content.
 - [x] Check whether any non-Admin Chinese UI text still appears garbled.
 
